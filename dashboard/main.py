@@ -28,16 +28,15 @@ config = Config()
 
 
 async def get_manager_auth(request: Request):
-    """Простая проверка авторизации для руководителей"""
-    # В реальном проекте здесь должна быть полноценная аутентификация
-    # Пока используем простую проверку по заголовку или параметру
-    auth_token = request.headers.get("Authorization") or request.query_params.get("token")
+    """Проверка авторизации для руководителей"""
+    client_ip = request.client.host
     
-    # Для демо используем простой токен
-    valid_tokens = ["manager_token_123", "demo_token"]
+    # Разрешаем доступ только с локальных IP без токена
+    if client_ip in ["127.0.0.1", "localhost", "::1"]:
+        return True
     
-    if not auth_token or auth_token not in valid_tokens:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # Для всех остальных IP - запрещаем доступ
+    raise HTTPException(status_code=401, detail="Unauthorized")
     
     return True
 
@@ -49,9 +48,11 @@ async def dashboard_home(request: Request, auth: bool = Depends(get_manager_auth
 
 
 @app.get("/api/stats")
-async def get_dashboard_stats(auth: bool = Depends(get_manager_auth)):
+async def get_dashboard_stats(request: Request):
     """API для получения статистики дашборда"""
     try:
+        # Проверяем авторизацию
+        await get_manager_auth(request)
         # Получаем базовую статистику
         current_balance = await BalanceDB.get_balance()
         pending_payments = await PaymentDB.get_pending_payments()
@@ -96,9 +97,11 @@ async def get_dashboard_stats(auth: bool = Depends(get_manager_auth)):
 
 
 @app.get("/api/payments")
-async def get_payments_data(auth: bool = Depends(get_manager_auth)):
+async def get_payments_data(request: Request):
     """API для получения данных о платежах"""
     try:
+        # Проверяем авторизацию
+        await get_manager_auth(request)
         # Получаем все платежи
         db_path = config.DATABASE_PATH
         conn = sqlite3.connect(db_path)
@@ -142,9 +145,11 @@ async def get_payments_data(auth: bool = Depends(get_manager_auth)):
 
 
 @app.get("/api/balance-history")
-async def get_balance_history(auth: bool = Depends(get_manager_auth)):
+async def get_balance_history(request: Request):
     """API для получения истории баланса"""
     try:
+        # Проверяем авторизацию
+        await get_manager_auth(request)
         db_path = config.DATABASE_PATH
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
