@@ -314,7 +314,6 @@ async def process_balance_add(message: Message, parsed_data: Dict[str, Any]):
             f"📈 **Стало:** {new_balance:.2f}$\n"
             f"📝 **Описание:** {description}\n"
             f"{details_text}\n\n"
-            f"🤖 **AI Confidence:** {parsed_data.get('confidence', 0):.1%}\n"
             f"✅ Баланс успешно обновлен!",
             parse_mode="Markdown"
         )
