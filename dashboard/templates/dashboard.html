@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд руководителя</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1 class="dashboard-title">Панель управления</h1>
+                <div class="header-info">
+                    <span class="current-time" id="current-time"></span>
+                    <div class="status-indicator">
+                        <span class="status-dot" id="status-dot"></span>
+                        <span class="status-text" id="status-text">Онлайн</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Stats Cards -->
+            <section class="stats-grid">
+                <div class="stat-card balance-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-content">
+                        <h3 class="stat-title">Текущий баланс</h3>
+                        <div class="stat-value" id="current-balance">$0.00</div>
+                        <div class="stat-status" id="balance-status">Загрузка...</div>
+                    </div>
+                </div>
+
+                <div class="stat-card payments-card">
+                    <div class="stat-icon">📝</div>
+                    <div class="stat-content">
+                        <h3 class="stat-title">Ожидающие оплаты</h3>
+                        <div class="stat-value" id="pending-count">0</div>
+                        <div class="stat-meta">на сумму $<span id="pending-amount">0.00</span></div>
+                    </div>
+                </div>
+
+                <div class="stat-card today-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <h3 class="stat-title">Платежи сегодня</h3>
+                        <div class="stat-value" id="today-payments">0</div>
+                        <div class="stat-meta">завершено</div>
+                    </div>
+                </div>
+
+                <div class="stat-card team-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <h3 class="stat-title">Команда</h3>
+                        <div class="stat-value" id="team-size">0</div>
+                        <div class="stat-meta">активных пользователей</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Платежи за неделю</h3>
+                        <canvas id="weekly-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-card">
+                        <h3 class="chart-title">Топ проекты</h3>
+                        <canvas id="projects-chart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Activity -->
+            <section class="activity-section">
+                <div class="activity-card">
+                    <h3 class="activity-title">Последние операции</h3>
+                    <div class="activity-list" id="recent-activity">
+                        <div class="activity-item loading">
+                            <div class="loading-placeholder"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="activity-card">
+                    <h3 class="activity-title">История баланса</h3>
+                    <div class="activity-list" id="balance-history">
+                        <div class="activity-item loading">
+                            <div class="loading-placeholder"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="loading-spinner"></div>
+            <p>Загрузка данных...</p>
+        </div>
+
+        <!-- Error Modal -->
+        <div class="modal-overlay" id="error-modal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Ошибка</h3>
+                    <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="error-message">Произошла ошибка при загрузке данных</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="retryLoad()">Попробовать снова</button>
+                    <button class="btn btn-secondary" onclick="closeErrorModal()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
