@@ -1,37 +1,28 @@
 {
-  "routes": [
+  "rewrites": [
     {
-      "src": "/webhook",
-      "dest": "/api/index.py"
+      "source": "/webhook",
+      "destination": "/api/index"
     },
     {
-      "src": "/set_webhook",
-      "dest": "/api/index.py"
+      "source": "/set_webhook",
+      "destination": "/api/index"
     },
     {
-      "src": "/webhook_info",
-      "dest": "/api/index.py"
+      "source": "/webhook_info",
+      "destination": "/api/index"
     },
     {
-      "src": "/health",
-      "dest": "/api/index.py"
+      "source": "/health",
+      "destination": "/api/index"
     },
     {
-      "src": "/dashboard(.*)",
-      "dest": "/api/dashboard.py"
+      "source": "/dashboard/(.*)",
+      "destination": "/api/dashboard"
     },
     {
-      "src": "/",
-      "dest": "/api/index.py"
+      "source": "/",
+      "destination": "/api/index"
     }
-  ],
-  "env": {
-    "PYTHONPATH": "."
-  },
-  "regions": ["fra1"],
-  "build": {
-    "env": {
-      "PYTHONPATH": "."
-    }
-  }
+  ]
 }

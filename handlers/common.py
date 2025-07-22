@@ -175,6 +175,39 @@ async def unauthorized_handler(message: Message):
     )
 
 
+async def default_handler(message: Message):
+    """Обработчик по умолчанию для всех необработанных сообщений"""
+    user_id = message.from_user.id
+    username = message.from_user.username or "Unknown"
+    
+    logger.info(f"Необработанное сообщение от {user_id} ({username}): {message.text}")
+    
+    config = Config()
+    role = config.get_user_role(user_id)
+    
+    if role == "unknown":
+        await unauthorized_handler(message)
+        return
+    
+    # Для авторизованных пользователей
+    role_names = {
+        "marketer": "маркетолог",
+        "financier": "финансист", 
+        "manager": "руководитель"
+    }
+    
+    await message.answer(
+        f"🤖 Привет, {role_names.get(role, 'пользователь')}!\n\n"
+        f"Я не понимаю команду: «{message.text}»\n\n"
+        f"**Доступные команды:**\n"
+        f"• /help - справка\n"
+        f"• /menu - главное меню\n"
+        f"• /start - начало работы\n\n"
+        f"Или используйте кнопки меню.",
+        parse_mode="Markdown"
+    )
+
+
 def setup_common_handlers(dp: Dispatcher):
     """Регистрация общих обработчиков"""
     dp.message.register(start_handler, Command("start"))
@@ -184,8 +217,7 @@ def setup_common_handlers(dp: Dispatcher):
     def is_authorized(message: Message) -> bool:
         return Config.is_authorized(message.from_user.id)
     
-    # Обработчик для неавторизованных пользователей (должен быть последним)
-    dp.message.register(
-        unauthorized_handler, 
-        lambda message: not is_authorized(message)
-    ) 
+    # Обработчик по умолчанию для ВСЕХ необработанных сообщений (ПОСЛЕДНИЙ!)
+    dp.message.register(default_handler)
+    
+    logger.info("✓ Обработчики common зарегистрированы")
