@@ -27,8 +27,7 @@
     }
   ],
   "env": {
-    "PYTHONPATH": ".",
-    "TZ": "UTC"
+    "PYTHONPATH": "."
   },
   "regions": ["fra1"],
   "build": {
