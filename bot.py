@@ -16,6 +16,7 @@ from handlers.manager import setup_manager_handlers
 from handlers.common import setup_common_handlers
 from handlers.menu_handler import setup_menu_handlers
 from handlers.command_handlers import setup_command_handlers
+from handlers.voice_handler import setup_voice_handlers
 from db.database import init_database
 from utils.config import Config
 from utils.logger import setup_logger
@@ -49,6 +50,7 @@ async def main():
     setup_common_handlers(dp)
     setup_menu_handlers(dp)
     setup_command_handlers(dp)
+    setup_voice_handlers(dp)
     setup_marketer_handlers(dp)
     setup_financier_handlers(dp)
     setup_manager_handlers(dp)

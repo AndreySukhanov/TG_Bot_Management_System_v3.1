@@ -34,14 +34,13 @@ class BotCommandManager:
             BotCommand(command="help", description="📋 Справка и помощь"),
         ]
         
-        # Добавляем menu только для маркетологов
         common_commands = base_commands.copy()
-        if role == "marketer":
-            common_commands.append(BotCommand(command="menu", description="🎛️ Показать меню"))
         
         role_commands = {
             "marketer": [
-                # Только 2 команды для маркетолога
+                BotCommand(command="examples", description="📝 Примеры создания заявок"),
+                BotCommand(command="formats", description="📋 Поддерживаемые форматы"),
+                BotCommand(command="natural", description="🗣️ Примеры естественного языка"),
             ],
             "financier": [
                 BotCommand(command="balance", description="💰 Показать баланс"),
