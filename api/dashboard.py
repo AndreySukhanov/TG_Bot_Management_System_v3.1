@@ -19,20 +19,51 @@ except ImportError as e:
     Config = None
 
 class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        """Обработка POST запросов (вход в систему)"""
+        try:
+            path = urlparse(self.path).path
+            
+            # Обработка входа в систему
+            if path == '/dashboard/login':
+                self._handle_login()
+                return
+                
+            # Для всех остальных POST запросов требуется авторизация
+            query_params = parse_qs(urlparse(self.path).query)
+            if not self._check_dashboard_auth(query_params):
+                self._send_response(401, {"error": "Unauthorized"})
+                return
+                
+            self._send_response(404, {"error": "Not found"})
+            
+        except Exception as e:
+            self._send_response(500, {"error": str(e)})
+    
     def do_GET(self):
         """Обработка GET запросов для дашборда"""
         try:
             path = urlparse(self.path).path
             query_params = parse_qs(urlparse(self.path).query)
             
-            # Проверка авторизации
+            # Страница входа
+            if path == '/dashboard/login':
+                self._send_login_page()
+                return
+            
+            # Проверка авторизации для всех остальных страниц дашборда
             if not self._check_dashboard_auth(query_params):
-                self._send_response(401, {"error": "Unauthorized. Add ?token=demo_token"})
+                self._send_login_redirect()
                 return
             
             # Главная страница дашборда
             if path == '/dashboard':
                 self._send_dashboard_page()
+                return
+            
+            # Выход из системы
+            if path == '/dashboard/logout':
+                self._send_logout()
                 return
             
             # API для статистики
@@ -61,9 +92,225 @@ class handler(BaseHTTPRequestHandler):
     
     def _check_dashboard_auth(self, query_params):
         """Проверка авторизации для дашборда"""
-        # Проверяем токен в параметрах запроса
-        token = query_params.get('token', [None])[0]
-        return token == 'demo_token'
+        # Проверяем сессионный токен в куки
+        cookies = self.headers.get('Cookie', '')
+        if 'dashboard_session=' in cookies:
+            session_token = None
+            for cookie in cookies.split('; '):
+                if cookie.startswith('dashboard_session='):
+                    session_token = cookie.split('=')[1]
+                    break
+            
+            # Простая проверка сессии (в реальном проекте использовать JWT или Redis)
+            if session_token == 'authenticated_user_session':
+                return True
+        
+        return False
+    
+    def _handle_login(self):
+        """Обработка входа в систему"""
+        try:
+            # Получаем данные POST запроса
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            
+            # Парсим форму
+            login_data = parse_qs(post_data)
+            username = login_data.get('username', [None])[0]
+            password = login_data.get('password', [None])[0]
+            
+            # Проверяем учетные данные
+            if self._validate_credentials(username, password):
+                # Успешный вход - устанавливаем куки и редирект
+                self.send_response(302)
+                self.send_header('Location', '/dashboard')
+                self.send_header('Set-Cookie', 'dashboard_session=authenticated_user_session; HttpOnly; Path=/dashboard; Max-Age=86400')
+                self.end_headers()
+                return
+            else:
+                # Неуспешный вход - возвращаем страницу входа с ошибкой
+                self._send_login_page(error="Неверный логин или пароль")
+                return
+                
+        except Exception as e:
+            self._send_response(500, {"error": f"Login error: {str(e)}"})
+    
+    def _validate_credentials(self, username, password):
+        """Проверка учетных данных"""
+        # Получаем учетные данные из переменных окружения или используем дефолтные
+        valid_username = os.getenv('DASHBOARD_USERNAME', 'admin')
+        valid_password = os.getenv('DASHBOARD_PASSWORD', 'manager123')
+        
+        return username == valid_username and password == valid_password
+    
+    def _send_login_page(self, error=None):
+        """Отправка страницы входа"""
+        error_html = f'<div class="error-message">{error}</div>' if error else ''
+        
+        html = f"""
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в Manager Dashboard</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .login-container {{
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 400px;
+        }}
+        .login-header {{
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        .login-header h1 {{
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }}
+        .login-header p {{
+            color: #666;
+            font-size: 14px;
+        }}
+        .form-group {{
+            margin-bottom: 20px;
+        }}
+        .form-group label {{
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }}
+        .form-group input {{
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }}
+        .form-group input:focus {{
+            outline: none;
+            border-color: #667eea;
+        }}
+        .login-btn {{
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }}
+        .login-btn:hover {{
+            transform: translateY(-1px);
+        }}
+        .login-btn:active {{
+            transform: translateY(0);
+        }}
+        .error-message {{
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+        }}
+        .credentials-info {{
+            background: #f0f9ff;
+            color: #0369a1;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 13px;
+            text-align: center;
+        }}
+        .credentials-info strong {{
+            display: block;
+            margin-bottom: 5px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🔐 Авторизация</h1>
+            <p>Вход в Manager Dashboard</p>
+        </div>
+        
+        {error_html}
+        
+        <form method="POST" action="/dashboard/login">
+            <div class="form-group">
+                <label for="username">Логин</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="login-btn">
+                Войти в систему
+            </button>
+        </form>
+        
+        <div class="credentials-info">
+            <strong>Тестовые данные для входа:</strong>
+            Логин: <strong>admin</strong><br>
+            Пароль: <strong>manager123</strong><br>
+            <small>(можно изменить через переменные DASHBOARD_USERNAME и DASHBOARD_PASSWORD)</small>
+        </div>
+    </div>
+</body>
+</html>
+        """
+        
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(html.encode('utf-8'))))
+            self.end_headers()
+            self.wfile.write(html.encode('utf-8'))
+        except Exception as e:
+            self._send_response(500, {"error": f"Error sending login page: {str(e)}"})
+    
+    def _send_login_redirect(self):
+        """Редирект на страницу входа"""
+        try:
+            self.send_response(302)
+            self.send_header('Location', '/dashboard/login')
+            self.end_headers()
+        except Exception as e:
+            self._send_response(401, {"error": "Unauthorized", "redirect": "/dashboard/login"})
+    
+    def _send_logout(self):
+        """Выход из системы"""
+        try:
+            self.send_response(302)
+            self.send_header('Location', '/dashboard/login')
+            self.send_header('Set-Cookie', 'dashboard_session=; HttpOnly; Path=/dashboard; Max-Age=0')
+            self.end_headers()
+        except Exception as e:
+            self._send_response(500, {"error": f"Logout error: {str(e)}"})
     
     def _send_dashboard_page(self):
         """Отправка HTML страницы дашборда"""
@@ -138,6 +385,17 @@ class handler(BaseHTTPRequestHandler):
             transition: background 0.3s;
         }
         .refresh-btn:hover { background: #4338ca; }
+        .logout-btn {
+            background: #ef4444;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: background 0.3s;
+            display: inline-block;
+        }
+        .logout-btn:hover { background: #dc2626; }
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: 1fr 1fr; }
             .table { font-size: 14px; }
@@ -151,7 +409,10 @@ class handler(BaseHTTPRequestHandler):
             <p>Управление финансами и аналитика</p>
         </div>
         
-        <button class="refresh-btn" onclick="loadDashboard()">🔄 Обновить данные</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <button class="refresh-btn" onclick="loadDashboard()">🔄 Обновить данные</button>
+            <a href="/dashboard/logout" class="logout-btn">🚪 Выйти</a>
+        </div>
         
         <div class="stats-grid" id="statsGrid">
             <div class="stat-card">
@@ -194,12 +455,8 @@ class handler(BaseHTTPRequestHandler):
     <script>
         async function loadDashboard() {
             try {
-                // Получаем токен из URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const token = urlParams.get('token') || 'demo_token';
-                
-                // Загружаем статистику
-                const statsResponse = await fetch(`/dashboard/api/stats?token=${token}`);
+                // Загружаем статистику (без токена - используем куки для авторизации)
+                const statsResponse = await fetch('/dashboard/api/stats');
                 if (!statsResponse.ok) throw new Error('Ошибка загрузки статистики');
                 const stats = await statsResponse.json();
                 
@@ -218,14 +475,14 @@ class handler(BaseHTTPRequestHandler):
                     `${stats.summary.marketers}M • ${stats.summary.financiers}F • ${stats.summary.managers}R`;
                 
                 // Загружаем платежи
-                const paymentsResponse = await fetch(`/dashboard/api/payments?token=${token}`);
+                const paymentsResponse = await fetch('/dashboard/api/payments');
                 if (paymentsResponse.ok) {
                     const paymentsData = await paymentsResponse.json();
                     displayPayments(paymentsData.payments);
                 }
                 
                 // Загружаем историю баланса
-                const historyResponse = await fetch(`/dashboard/api/balance-history?token=${token}`);
+                const historyResponse = await fetch('/dashboard/api/balance-history');
                 if (historyResponse.ok) {
                     const historyData = await historyResponse.json();
                     displayBalanceHistory(historyData.history);
