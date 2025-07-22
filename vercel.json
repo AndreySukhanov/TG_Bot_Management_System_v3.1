@@ -17,6 +17,10 @@
       "dest": "/api/index.py"
     },
     {
+      "src": "/dashboard(.*)",
+      "dest": "/api/dashboard.py"
+    },
+    {
       "src": "/",
       "dest": "/api/index.py"
     }
