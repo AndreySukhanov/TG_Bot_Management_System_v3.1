@@ -1,0 +1,39 @@
+{
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.11"
+    }
+  },
+  "routes": [
+    {
+      "src": "/webhook",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/set_webhook",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/webhook_info",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/health",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/",
+      "dest": "/api/index.py"
+    }
+  ],
+  "env": {
+    "PYTHONPATH": ".",
+    "TZ": "UTC"
+  },
+  "regions": ["fra1"],
+  "build": {
+    "env": {
+      "PYTHONPATH": "."
+    }
+  }
+}
