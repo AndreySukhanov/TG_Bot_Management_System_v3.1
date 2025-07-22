@@ -1,18 +1,15 @@
-#!/usr/bin/env python3
-"""
-Vercel Serverless Function для Telegram Bot
-"""
+from http.server import BaseHTTPRequestHandler
+import json
 import asyncio
 import logging
 import os
 import sys
-import json
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs
 
 # Добавляем корневую директорию в path для импорта модулей
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Настройка логирования для Vercel
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -79,147 +76,145 @@ async def init_bot():
         logger.error(f"Ошибка инициализации бота: {e}")
         raise
 
-def handler(request, context):
-    """Синхронная точка входа для Vercel"""
-    return asyncio.run(async_handler(request, context))
-
-async def async_handler(request, context):
-    """Асинхронный обработчик запросов"""
-    try:
-        # Получение данных запроса
-        method = request.get('method', 'GET')
-        path = request.get('path', '/')
-        query_params = request.get('queryStringParameters') or {}
-        headers = request.get('headers', {})
-        body = request.get('body', '')
-        
-        logger.info(f"Получен запрос: {method} {path}")
-        
-        # Health check
-        if path in ['/', '/health']:
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        """Обработка GET запросов"""
+        try:
+            logger.info(f"GET запрос: {self.path}")
+            
+            # Health check
+            if self.path in ['/', '/health']:
+                response = {
                     "status": "ok", 
                     "bot": "running",
                     "webhook": "active"
-                })
+                }
+                self._send_response(200, response)
+                return
+            
+            # Установка webhook
+            if self.path == '/set_webhook':
+                result = asyncio.run(self._set_webhook())
+                self._send_response(200, result)
+                return
+            
+            # Информация о webhook
+            if self.path == '/webhook_info':
+                result = asyncio.run(self._get_webhook_info())
+                self._send_response(200, result)
+                return
+            
+            # 404 для остальных путей
+            self._send_response(404, {"error": "Not found", "path": self.path})
+            
+        except Exception as e:
+            logger.error(f"Ошибка GET запроса: {e}")
+            self._send_response(500, {"error": str(e)})
+    
+    def do_POST(self):
+        """Обработка POST запросов"""
+        try:
+            logger.info(f"POST запрос: {self.path}")
+            
+            # Webhook endpoint
+            if self.path == '/webhook':
+                result = asyncio.run(self._handle_webhook())
+                self._send_response(200, result)
+                return
+            
+            # Установка webhook через POST
+            if self.path == '/set_webhook':
+                result = asyncio.run(self._set_webhook())
+                self._send_response(200, result)
+                return
+            
+            # 404 для остальных путей
+            self._send_response(404, {"error": "Not found", "path": self.path})
+            
+        except Exception as e:
+            logger.error(f"Ошибка POST запроса: {e}")
+            self._send_response(500, {"error": str(e)})
+    
+    async def _handle_webhook(self):
+        """Обработка webhook от Telegram"""
+        try:
+            # Получение данных запроса
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            data = json.loads(post_data)
+            
+            logger.info(f"Получено обновление: {json.dumps(data, ensure_ascii=False)[:200]}...")
+            
+            # Инициализация бота
+            bot_instance, dp_instance = await init_bot()
+            
+            # Создание Update объекта и обработка
+            from aiogram.types import Update
+            update = Update(**data)
+            
+            # Обработка обновления
+            await dp_instance.feed_update(bot_instance, update)
+            
+            return {"ok": True}
+            
+        except Exception as e:
+            logger.error(f"Ошибка обработки webhook: {e}")
+            raise
+    
+    async def _set_webhook(self):
+        """Установка webhook"""
+        try:
+            # Инициализация бота
+            bot_instance, _ = await init_bot()
+            
+            # Получение хоста
+            host = self.headers.get('host', self.headers.get('Host', 'unknown'))
+            webhook_url = f"https://{host}/webhook"
+            
+            result = await bot_instance.set_webhook(webhook_url)
+            logger.info(f"Webhook установлен: {webhook_url}")
+            
+            return {
+                "ok": True, 
+                "webhook_url": webhook_url,
+                "result": result
             }
-        
-        # Инициализация бота для всех остальных запросов
-        bot_instance, dp_instance = await init_bot()
-        
-        # Webhook endpoint
-        if path == '/webhook' and method == 'POST':
-            try:
-                # Парсинг JSON данных
-                if isinstance(body, str):
-                    data = json.loads(body)
-                else:
-                    data = body
-                
-                logger.info(f"Получено обновление: {json.dumps(data, ensure_ascii=False)[:200]}...")
-                
-                # Создание Update объекта и обработка
-                from aiogram.types import Update
-                update = Update(**data)
-                
-                # Обработка обновления
-                await dp_instance.feed_update(bot_instance, update)
-                
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({"ok": True})
-                }
-                
-            except Exception as e:
-                logger.error(f"Ошибка обработки webhook: {e}")
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        "error": "Webhook processing error", 
-                        "details": str(e)
-                    })
-                }
-        
-        # Установка webhook
-        if path == '/set_webhook':
-            try:
-                # Получение хоста из заголовков
-                host = headers.get('host', headers.get('Host', 'unknown'))
-                webhook_url = f"https://{host}/webhook"
-                
-                result = await bot_instance.set_webhook(webhook_url)
-                logger.info(f"Webhook установлен: {webhook_url}")
-                
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        "ok": True, 
-                        "webhook_url": webhook_url,
-                        "result": result
-                    })
-                }
-            except Exception as e:
-                logger.error(f"Ошибка установки webhook: {e}")
-                return {
-                    'statusCode': 500,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        "error": "Webhook setup error", 
-                        "details": str(e)
-                    })
-                }
-        
-        # Получение информации о webhook
-        if path == '/webhook_info':
-            try:
-                info = await bot_instance.get_webhook_info()
-                return {
-                    'statusCode': 200,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        "url": info.url,
-                        "has_custom_certificate": info.has_custom_certificate,
-                        "pending_update_count": info.pending_update_count,
-                        "last_error_date": info.last_error_date,
-                        "last_error_message": info.last_error_message,
-                        "max_connections": info.max_connections,
-                        "allowed_updates": info.allowed_updates
-                    })
-                }
-            except Exception as e:
-                logger.error(f"Ошибка получения информации о webhook: {e}")
-                return {
-                    'statusCode': 500,
-                    'headers': {'Content-Type': 'application/json'},
-                    'body': json.dumps({
-                        "error": "Webhook info error", 
-                        "details": str(e)
-                    })
-                }
-        
-        # 404 для остальных путей
-        return {
-            'statusCode': 404,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                "error": "Not found", 
-                "path": path
-            })
-        }
-        
-    except Exception as e:
-        logger.error(f"Критическая ошибка в handler: {e}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({
-                "error": "Internal server error", 
-                "details": str(e)
-            })
-        }
+            
+        except Exception as e:
+            logger.error(f"Ошибка установки webhook: {e}")
+            raise
+    
+    async def _get_webhook_info(self):
+        """Получение информации о webhook"""
+        try:
+            # Инициализация бота
+            bot_instance, _ = await init_bot()
+            
+            info = await bot_instance.get_webhook_info()
+            return {
+                "url": info.url,
+                "has_custom_certificate": info.has_custom_certificate,
+                "pending_update_count": info.pending_update_count,
+                "last_error_date": info.last_error_date,
+                "last_error_message": info.last_error_message,
+                "max_connections": info.max_connections,
+                "allowed_updates": info.allowed_updates
+            }
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения информации о webhook: {e}")
+            raise
+    
+    def _send_response(self, status_code, data):
+        """Отправка JSON ответа"""
+        try:
+            response_body = json.dumps(data, ensure_ascii=False).encode('utf-8')
+            
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(response_body)))
+            self.end_headers()
+            self.wfile.write(response_body)
+            
+        except Exception as e:
+            logger.error(f"Ошибка отправки ответа: {e}")
