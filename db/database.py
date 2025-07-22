@@ -138,6 +138,21 @@ class PaymentDB:
             return dict(row) if row else None
     
     @staticmethod
+    async def get_payments_by_marketer(marketer_id: int) -> List[Dict[str, Any]]:
+        """Получение всех заявок конкретного маркетолога"""
+        config = Config()
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT * FROM payments 
+                WHERE marketer_id = ? 
+                ORDER BY created_at DESC
+            """, (marketer_id,))
+            
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+    
+    @staticmethod
     async def update_payment_status(payment_id: int, status: str, 
                                   confirmation_hash: Optional[str] = None,
                                   confirmation_file: Optional[str] = None):

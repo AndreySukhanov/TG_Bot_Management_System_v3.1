@@ -175,4 +175,108 @@ def setup_marketer_handlers(dp: Dispatcher):
         payment_request_handler,
         (F.document | F.photo) & (~F.caption.regexp(r"^/", flags=re.IGNORECASE)),
         is_marketer
-    ) 
+    )
+
+
+async def my_payments_handler(message: Message):
+    """Показать заявки маркетолога"""
+    try:
+        from db.database import PaymentDB
+        
+        marketer_id = message.from_user.id
+        payments = await PaymentDB.get_payments_by_marketer(marketer_id)
+        
+        if not payments:
+            await message.answer(
+                "📝 **Ваши заявки**\n\n"
+                "У вас пока нет заявок на оплату.\n\n"
+                "Создайте заявку голосовым сообщением или текстом:\n"
+                "• 'Нужна оплата Фейсбук 100$ проект Альфа'\n"
+                "• 'Оплати Гугл Адс 50 долларов криптой'",
+                parse_mode="Markdown"
+            )
+            return
+            
+        # Группируем по статусам
+        pending = [p for p in payments if p['status'] == 'pending']
+        paid = [p for p in payments if p['status'] == 'paid']
+        
+        message_parts = ["📝 **Ваши заявки**\n"]
+        
+        if pending:
+            message_parts.append("⏳ **Ожидают подтверждения:**")
+            for payment in pending[-5:]:  # Последние 5
+                message_parts.append(
+                    f"• ID {payment['id']}: **{payment['amount']}$** - {payment['service_name']}\n"
+                    f"  📋 {payment['project_name']} | 💳 {payment['payment_method']}"
+                )
+            message_parts.append("")
+            
+        if paid:
+            message_parts.append("✅ **Последние оплаченные:**")
+            for payment in paid[-3:]:  # Последние 3
+                message_parts.append(
+                    f"• ID {payment['id']}: **{payment['amount']}$** - {payment['service_name']}"
+                )
+            message_parts.append("")
+            
+        message_parts.append(f"📊 **Всего заявок:** {len(payments)}")
+        
+        await message.answer(
+            "\n".join(message_parts),
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения заявок маркетолога: {e}")
+        await message.answer("❌ Ошибка при получении заявок. Попробуйте позже.")
+
+
+async def last_payment_handler(message: Message):
+    """Показать последнюю заявку маркетолога"""
+    try:
+        from db.database import PaymentDB
+        
+        marketer_id = message.from_user.id
+        payments = await PaymentDB.get_payments_by_marketer(marketer_id)
+        
+        if not payments:
+            await message.answer(
+                "📝 **Последняя заявка**\n\n"
+                "У вас пока нет заявок на оплату.\n\n"
+                "Создайте заявку голосовым сообщением или текстом:\n"
+                "• 'Нужна оплата Фейсбук 100$ проект Альфа'\n"
+                "• 'Оплати Гугл Адс 50 долларов криптой'",
+                parse_mode="Markdown"
+            )
+            return
+            
+        # Берем самую последнюю заявку
+        last_payment = payments[0]
+        
+        # Статус с эмодзи
+        status_emoji = {
+            'pending': '⏳ Ожидает подтверждения',
+            'paid': '✅ Оплачена',
+            'rejected': '❌ Отклонена'
+        }.get(last_payment['status'], f"❓ {last_payment['status']}")
+        
+        # Форматируем дату создания
+        created_date = last_payment['created_at'][:16].replace('T', ' ')
+        
+        await message.answer(
+            f"📝 **Последняя заявка**\n\n"
+            f"🆔 **ID:** {last_payment['id']}\n"
+            f"💰 **Сумма:** {last_payment['amount']}$\n"
+            f"🛍️ **Сервис:** {last_payment['service_name']}\n"
+            f"📋 **Проект:** {last_payment['project_name']}\n"
+            f"💳 **Способ оплаты:** {last_payment['payment_method']}\n"
+            f"📅 **Создана:** {created_date}\n"
+            f"📊 **Статус:** {status_emoji}\n\n"
+            f"💡 Для просмотра всех заявок скажите: 'Мои заявки'",
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения последней заявки: {e}")
+        await message.answer("❌ Ошибка при получении заявки. Попробуйте позже.") 
