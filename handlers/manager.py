@@ -118,8 +118,8 @@ async def analytics_query_handler(message: Message):
         
         # Отправляем ответ пользователю
         await message.answer(
-            f"🤖 **AI-Аналитика:**\n\n{response}",
-            parse_mode="Markdown"
+            f"🤖 <b>AI-Аналитика:</b>\n\n{response}",
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -213,7 +213,7 @@ async def notify_financiers_balance_reset(bot, old_balance: float, username: str
             await bot.send_message(
                 financier_id,
                 notification_text,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление об обнулении финансисту {financier_id}: {e}")
@@ -279,7 +279,7 @@ async def process_balance_add(message: Message, parsed_data: Dict[str, Any]):
         await message.answer(
             "❌ Не удалось определить корректную сумму пополнения.\n"
             "Попробуйте указать сумму более явно.",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         return
     
@@ -296,26 +296,26 @@ async def process_balance_add(message: Message, parsed_data: Dict[str, Any]):
         # Формируем детальное описание
         details = []
         if parsed_data.get("platform"):
-            details.append(f"🎯 **Платформа:** {parsed_data['platform']}")
+            details.append(f"🎯 <b>Платформа:</b> {parsed_data['platform']}")
         if parsed_data.get("project"):
-            details.append(f"📂 **Проект:** {parsed_data['project']}")
+            details.append(f"📂 <b>Проект:</b> {parsed_data['project']}")
         if parsed_data.get("payment_method"):
-            details.append(f"💳 **Способ оплаты:** {parsed_data['payment_method']}")
+            details.append(f"💳 <b>Способ оплаты:</b> {parsed_data['payment_method']}")
         if parsed_data.get("payment_details"):
-            details.append(f"🔢 **Детали:** {parsed_data['payment_details']}")
+            details.append(f"🔢 <b>Детали:</b> {parsed_data['payment_details']}")
         
         details_text = "\n".join(details) if details else ""
         
         # Отправка подтверждения
         await message.answer(
-            f"✅ **БАЛАНС ПОПОЛНЕН!**\n\n"
-            f"💰 **Сумма пополнения:** {amount:.2f}$\n"
-            f"📊 **Было:** {old_balance:.2f}$\n"
-            f"📈 **Стало:** {new_balance:.2f}$\n"
-            f"📝 **Описание:** {description}\n"
+            f"✅ <b>БАЛАНС ПОПОЛНЕН!</b>\n\n"
+            f"💰 <b>Сумма пополнения:</b> {amount:.2f}$\n"
+            f"📊 <b>Было:</b> {old_balance:.2f}$\n"
+            f"📈 <b>Стало:</b> {new_balance:.2f}$\n"
+            f"📝 <b>Описание:</b> {description}\n"
             f"{details_text}\n\n"
             f"✅ Баланс успешно обновлен!",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
         # Уведомление финансистов о пополнении
@@ -355,18 +355,18 @@ async def process_system_command(message: Message, parsed_data: Dict[str, Any]):
 async def handle_unparseable_message(message: Message):
     """Обработка сообщений, которые AI не смог распарсить"""
     await message.answer(
-        "❌ **Не удалось распознать команду.**\n\n"
-        "🤖 **AI-помощник поддерживает:**\n"
+        "❌ <b>Не удалось распознать команду.</b>\n\n"
+        "🤖 <b>AI-помощник поддерживает:</b>\n"
         "• Пополнение баланса\n"
         "• Обнуление баланса\n"
         "• Аналитические запросы\n"
         "• Системные команды\n\n"
-        "**Примеры:**\n"
-        "• `пополни баланс на 500 баксов для Инсты`\n"
-        "• `обнули баланс`\n"
-        "• `какой сейчас баланс?`\n"
-        "• `сколько потратили на рекламу?`",
-        parse_mode="Markdown"
+        "<b>Примеры:</b>\n"
+        "• <code>пополни баланс на 500 баксов для Инсты</code>\n"
+        "• <code>обнули баланс</code>\n"
+        "• <code>какой сейчас баланс?</code>\n"
+        "• <code>сколько потратили на рекламу?</code>",
+        parse_mode="HTML"
     )
 
 
@@ -376,43 +376,43 @@ async def handle_low_confidence_message(message: Message, parsed_data: Dict[str,
     confidence = parsed_data.get("confidence", 0)
     
     await message.answer(
-        f"🤔 **Не уверен в интерпретации сообщения**\n\n"
-        f"🤖 **AI определил:** {operation_type}\n"
-        f"📊 **Уверенность:** {confidence:.1%}\n\n"
+        f"🤔 <b>Не уверен в интерпретации сообщения</b>\n\n"
+        f"🤖 <b>AI определил:</b> {operation_type}\n"
+        f"📊 <b>Уверенность:</b> {confidence:.1%}\n\n"
         f"Пожалуйста, переформулируйте сообщение более четко.\n\n"
-        f"**Примеры четких команд:**\n"
-        f"• `пополни баланс на 500 долларов`\n"
-        f"• `обнули баланс полностью`\n"
-        f"• `какой текущий баланс?`",
-        parse_mode="Markdown"
+        f"<b>Примеры четких команд:</b>\n"
+        f"• <code>пополни баланс на 500 долларов</code>\n"
+        f"• <code>обнули баланс полностью</code>\n"
+        f"• <code>какой текущий баланс?</code>",
+        parse_mode="HTML"
     )
 
 
 async def handle_unknown_operation(message: Message, parsed_data: Dict[str, Any]):
     """Обработка неизвестных операций"""
     await message.answer(
-        "❓ **Неизвестная операция**\n\n"
+        "❓ <b>Неизвестная операция</b>\n\n"
         "🤖 AI не смог определить тип операции.\n"
         "Попробуйте переформулировать сообщение или используйте команды:\n\n"
-        "• `/balance` - текущий баланс\n"
-        "• `/stats` - статистика\n"
-        "• `/ai вопрос` - прямое обращение к AI\n"
-        "• `/help` - помощь",
-        parse_mode="Markdown"
+        "• <code>/balance</code> - текущий баланс\n"
+        "• <code>/stats</code> - статистика\n"
+        "• <code>/ai вопрос</code> - прямое обращение к AI\n"
+        "• <code>/help</code> - помощь",
+        parse_mode="HTML"
     )
 
 
 async def handle_processing_error(message: Message, error: Exception):
     """Обработка ошибок при обработке сообщения"""
     await message.answer(
-        "❌ **Произошла ошибка при обработке сообщения**\n\n"
+        "❌ <b>Произошла ошибка при обработке сообщения</b>\n\n"
         "🤖 AI-помощник временно недоступен.\n"
         "Попробуйте еще раз или обратитесь к администратору.\n\n"
-        "**Альтернативные команды:**\n"
-        "• `/balance` - текущий баланс\n"
-        "• `/stats` - статистика\n"
-        "• `/help` - помощь",
-        parse_mode="Markdown"
+        "<b>Альтернативные команды:</b>\n"
+        "• <code>/balance</code> - текущий баланс\n"
+        "• <code>/stats</code> - статистика\n"
+        "• <code>/help</code> - помощь",
+        parse_mode="HTML"
     )
 
 
@@ -439,13 +439,13 @@ async def statistics_handler(message: Message):
         status_emoji = "✅" if current_balance >= config.LOW_BALANCE_THRESHOLD else "⚠️"
         
         await message.answer(
-            f"📊 **СТАТИСТИКА СИСТЕМЫ**\n\n"
-            f"{status_emoji} **Баланс:** {current_balance:.2f}$\n"
-            f"⏳ **Ожидающих оплат:** {len(pending_payments)} шт.\n"
-            f"💸 **Сумма ожидающих:** {total_pending:.2f}$\n"
-            f"📉 **Порог уведомлений:** {config.LOW_BALANCE_THRESHOLD}$\n\n"
+            f"📊 <b>СТАТИСТИКА СИСТЕМЫ</b>\n\n"
+            f"{status_emoji} <b>Баланс:</b> {current_balance:.2f}$\n"
+            f"⏳ <b>Ожидающих оплат:</b> {len(pending_payments)} шт.\n"
+            f"💸 <b>Сумма ожидающих:</b> {total_pending:.2f}$\n"
+            f"📉 <b>Порог уведомлений:</b> {config.LOW_BALANCE_THRESHOLD}$\n\n"
             f"{'🟢 Система работает нормально' if current_balance >= config.LOW_BALANCE_THRESHOLD else '🔴 Требуется внимание к балансу'}",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -460,10 +460,10 @@ async def notify_financiers_balance_updated(bot, amount: float, new_balance: flo
     config = Config()
     
     notification_text = (
-        f"💰 **БАЛАНС ПОПОЛНЕН**\n\n"
-        f"📈 **Пополнение:** +{amount:.2f}$\n"
-        f"💰 **Новый баланс:** {new_balance:.2f}$\n"
-        f"📝 **Описание:** {description if description else 'Пополнение баланса'}"
+        f"💰 <b>БАЛАНС ПОПОЛНЕН</b>\n\n"
+        f"📈 <b>Пополнение:</b> +{amount:.2f}$\n"
+        f"💰 <b>Новый баланс:</b> {new_balance:.2f}$\n"
+        f"📝 <b>Описание:</b> {description if description else 'Пополнение баланса'}"
     )
     
     for financier_id in config.FINANCIERS:
@@ -471,7 +471,7 @@ async def notify_financiers_balance_updated(bot, amount: float, new_balance: flo
             await bot.send_message(
                 financier_id,
                 notification_text,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление финансисту {financier_id}: {e}")
@@ -492,19 +492,19 @@ async def ai_assistant_handler(message: Message):
     
     if not query:
         await message.answer(
-            "🤖 **AI-Помощник активирован!**\n\n"
-            "**Примеры запросов:**\n"
-            "• `/ai Сколько человек в команде?`\n"
-            "• `/ai Какой сейчас баланс?`\n"
-            "• `/ai Платежи за неделю`\n"
-            "• `/ai Покажи ожидающие оплаты`\n"
-            "• `/ai Последние операции`\n"
-            "• `/ai История баланса`\n\n"
-            "**Или просто задайте вопрос:**\n"
-            "• `Сколько человек в команде?`\n"
-            "• `Какие платежи были сегодня?`\n"
-            "• `Скажи, какой сейчас баланс?`",
-            parse_mode="Markdown"
+            "🤖 <b>AI-Помощник активирован!</b>\n\n"
+            "<b>Примеры запросов:</b>\n"
+            "• <code>/ai Сколько человек в команде?</code>\n"
+            "• <code>/ai Какой сейчас баланс?</code>\n"
+            "• <code>/ai Платежи за неделю</code>\n"
+            "• <code>/ai Покажи ожидающие оплаты</code>\n"
+            "• <code>/ai Последние операции</code>\n"
+            "• <code>/ai История баланса</code>\n\n"
+            "<b>Или просто задайте вопрос:</b>\n"
+            "• <code>Сколько человек в команде?</code>\n"
+            "• <code>Какие платежи были сегодня?</code>\n"
+            "• <code>Скажи, какой сейчас баланс?</code>",
+            parse_mode="HTML"
         )
         return
     
@@ -516,8 +516,8 @@ async def ai_assistant_handler(message: Message):
         
         # Отправляем ответ пользователю
         await message.answer(
-            f"🤖 **AI-Помощник:**\n\n{response}",
-            parse_mode="Markdown"
+            f"🤖 <b>AI-Помощник:</b>\n\n{response}",
+            parse_mode="HTML"
         )
         
     except Exception as e:

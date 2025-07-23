@@ -39,11 +39,11 @@ async def payment_confirmation_handler(message: Message):
         
         if not match:
             await message.answer(
-                "❌ **Неверный формат подтверждения.**\n\n"
+                "❌ <b>Неверный формат подтверждения.</b>\n\n"
                 "Используйте формат:\n"
-                "`Оплачено [ID_ЗАЯВКИ]` + прикрепите подтверждение\n\n"
-                "Пример: `Оплачено 123`",
-                parse_mode="Markdown"
+                "<code>Оплачено [ID_ЗАЯВКИ]</code> + прикрепите подтверждение\n\n"
+                "Пример: <code>Оплачено 123</code>",
+                parse_mode="HTML"
             )
             return
         
@@ -53,16 +53,16 @@ async def payment_confirmation_handler(message: Message):
         payment = await PaymentDB.get_payment(payment_id)
         if not payment:
             await message.answer(
-                f"❌ Заявка с ID `{payment_id}` не найдена.",
-                parse_mode="Markdown"
+                f"❌ Заявка с ID <code>{payment_id}</code> не найдена.",
+                parse_mode="HTML"
             )
             return
         
         if payment["status"] != "pending":
             await message.answer(
-                f"❌ Заявка `{payment_id}` уже обработана.\n"
-                f"Текущий статус: **{payment['status']}**",
-                parse_mode="Markdown"
+                f"❌ Заявка <code>{payment_id}</code> уже обработана.\n"
+                f"Текущий статус: <b>{payment['status']}</b>",
+                parse_mode="HTML"
             )
             return
         
@@ -104,13 +104,13 @@ async def payment_confirmation_handler(message: Message):
         
         # Отправка подтверждения финансисту
         await message.answer(
-            f"✅ **Оплата подтверждена!**\n\n"
-            f"📋 **ID заявки:** `{payment_id}`\n"
-            f"🛍️ **Сервис:** {payment['service_name']}\n"
-            f"💰 **Сумма:** {payment['amount']}$\n"
-            f"🏷️ **Проект:** {payment['project_name']}\n\n"
+            f"✅ <b>Оплата подтверждена!</b>\n\n"
+            f"📋 <b>ID заявки:</b> <code>{payment_id}</code>\n"
+            f"🛍️ <b>Сервис:</b> {payment['service_name']}\n"
+            f"💰 <b>Сумма:</b> {payment['amount']}$\n"
+            f"🏷️ <b>Проект:</b> {payment['project_name']}\n\n"
             f"✅ Маркетолог получил уведомление об оплате.",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
         # Уведомление маркетолога
@@ -129,7 +129,7 @@ async def payment_confirmation_handler(message: Message):
     except ValueError:
         await message.answer(
             "❌ Неверный ID заявки. Используйте числовой ID.",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     except Exception as e:
         logger.error(f"Ошибка подтверждения оплаты: {e}")
@@ -157,11 +157,11 @@ async def balance_command_handler(message: Message):
         status_emoji = "✅" if current_balance >= config.LOW_BALANCE_THRESHOLD else "⚠️"
         
         await message.answer(
-            f"{status_emoji} **ТЕКУЩИЙ БАЛАНС**\n\n"
-            f"💰 **Сумма:** {current_balance:.2f}$\n"
-            f"📊 **Порог:** {config.LOW_BALANCE_THRESHOLD}$\n\n"
+            f"{status_emoji} <b>ТЕКУЩИЙ БАЛАНС</b>\n\n"
+            f"💰 <b>Сумма:</b> {current_balance:.2f}$\n"
+            f"📊 <b>Порог:</b> {config.LOW_BALANCE_THRESHOLD}$\n\n"
             f"{'🟢 Баланс в норме' if current_balance >= config.LOW_BALANCE_THRESHOLD else '🔴 Требуется пополнение'}",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -175,11 +175,11 @@ async def notify_marketer_payment_confirmed(bot, marketer_id: int, payment_id: i
     """Уведомление маркетолога о подтверждении оплаты"""
     
     notification_text = (
-        f"✅ **ОПЛАТА ПОДТВЕРЖДЕНА!**\n\n"
-        f"📋 **ID заявки:** `{payment_id}`\n"
-        f"🛍️ **Сервис:** {payment['service_name']}\n"
-        f"💰 **Сумма:** {payment['amount']}$\n"
-        f"🏷️ **Проект:** {payment['project_name']}\n\n"
+        f"✅ <b>ОПЛАТА ПОДТВЕРЖДЕНА!</b>\n\n"
+        f"📋 <b>ID заявки:</b> <code>{payment_id}</code>\n"
+        f"🛍️ <b>Сервис:</b> {payment['service_name']}\n"
+        f"💰 <b>Сумма:</b> {payment['amount']}$\n"
+        f"🏷️ <b>Проект:</b> {payment['project_name']}\n\n"
         f"✅ Ваша заявка успешно оплачена!"
     )
     
@@ -187,7 +187,7 @@ async def notify_marketer_payment_confirmed(bot, marketer_id: int, payment_id: i
         await bot.send_message(
             marketer_id,
             notification_text,
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     except Exception as e:
         logger.error(f"Не удалось отправить уведомление маркетологу {marketer_id}: {e}")
@@ -199,9 +199,9 @@ async def notify_managers_low_balance(bot):
     current_balance = await BalanceDB.get_balance()
     
     notification_text = (
-        f"⚠️ **НИЗКИЙ БАЛАНС!**\n\n"
-        f"💰 **Текущий баланс:** {current_balance:.2f}$\n"
-        f"📉 **Порог:** {config.LOW_BALANCE_THRESHOLD}$\n\n"
+        f"⚠️ <b>НИЗКИЙ БАЛАНС!</b>\n\n"
+        f"💰 <b>Текущий баланс:</b> {current_balance:.2f}$\n"
+        f"📉 <b>Порог:</b> {config.LOW_BALANCE_THRESHOLD}$\n\n"
         f"💳 Необходимо пополнение баланса!"
     )
     
@@ -210,7 +210,7 @@ async def notify_managers_low_balance(bot):
             await bot.send_message(
                 manager_id,
                 notification_text,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление руководителю {manager_id}: {e}")

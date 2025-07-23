@@ -41,13 +41,13 @@ async def payment_request_handler(message: Message):
         
         if not payment_data:
             await message.answer(
-                "❌ **Не удалось распознать заявку на оплату.**\n\n"
+                "❌ <b>Не удалось распознать заявку на оплату.</b>\n\n"
                 "Теперь поддерживается естественный язык! Примеры:\n"
-                "• `Привет, мне нужно оплатить фейсбук на сотку для проекта Альфа через крипту`\n"
-                "• `Нужна оплата гугл адс 50 долларов проект Бета телефон +1234567890`\n"
-                "• `Оплати инстаграм 200$ проект Гамма счет 1234-5678`\n\n"
+                "• <code>Привет, мне нужно оплатить фейсбук на сотку для проекта Альфа через крипту</code>\n"
+                "• <code>Нужна оплата гугл адс 50 долларов проект Бета телефон +1234567890</code>\n"
+                "• <code>Оплати инстаграм 200$ проект Гамма счет 1234-5678</code>\n\n"
                 "Отправьте /help для просмотра всех примеров.",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             return
         
@@ -79,16 +79,16 @@ async def payment_request_handler(message: Message):
         
         # Отправка подтверждения маркетологу
         await message.answer(
-            f"✅ **Заявка создана успешно!**\n\n"
-            f"📋 **ID заявки:** `{payment_id}`\n"
-            f"🛍️ **Сервис:** {payment_data['service_name']}\n"
-            f"💰 **Сумма:** {payment_data['amount']}$\n"
-            f"🏷️ **Проект:** {payment_data['project_name']}\n"
-            f"💳 **Способ оплаты:** {payment_data['payment_method']}\n"
-            f"📝 **Детали:** {payment_data['payment_details']}\n\n"
+            f"✅ <b>Заявка создана успешно!</b>\n\n"
+            f"📋 <b>ID заявки:</b> <code>{payment_id}</code>\n"
+            f"🛍️ <b>Сервис:</b> {payment_data['service_name']}\n"
+            f"💰 <b>Сумма:</b> {payment_data['amount']}$\n"
+            f"🏷️ <b>Проект:</b> {payment_data['project_name']}\n"
+            f"💳 <b>Способ оплаты:</b> {payment_data['payment_method']}\n"
+            f"📝 <b>Детали:</b> {payment_data['payment_details']}\n\n"
             f"⏳ Статус: Ожидает оплаты\n"
             f"Финансист получил уведомление.",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
         # Отправка уведомления финансистам
@@ -113,15 +113,15 @@ async def notify_financiers_about_payment(bot, payment_id: int, payment_data: di
     config = Config()
     
     notification_text = (
-        f"🔔 **НОВАЯ ЗАЯВКА НА ОПЛАТУ**\n\n"
-        f"📋 **ID:** `{payment_id}`\n"
-        f"🛍️ **Сервис:** {payment_data['service_name']}\n"
-        f"💰 **Сумма:** {payment_data['amount']}$\n"
-        f"🏷️ **Проект:** {payment_data['project_name']}\n"
-        f"💳 **Способ оплаты:** {payment_data['payment_method']}\n"
-        f"📝 **Детали:** {payment_data['payment_details']}\n\n"
+        f"🔔 <b>НОВАЯ ЗАЯВКА НА ОПЛАТУ</b>\n\n"
+        f"📋 <b>ID:</b> <code>{payment_id}</code>\n"
+        f"🛍️ <b>Сервис:</b> {payment_data['service_name']}\n"
+        f"💰 <b>Сумма:</b> {payment_data['amount']}$\n"
+        f"🏷️ <b>Проект:</b> {payment_data['project_name']}\n"
+        f"💳 <b>Способ оплаты:</b> {payment_data['payment_method']}\n"
+        f"📝 <b>Детали:</b> {payment_data['payment_details']}\n\n"
         f"💸 Для подтверждения оплаты отправьте:\n"
-        f"`Оплачено {payment_id}` + прикрепите подтверждение"
+        f"<code>Оплачено {payment_id}</code> + прикрепите подтверждение"
     )
     
     for financier_id in config.FINANCIERS:
@@ -129,7 +129,7 @@ async def notify_financiers_about_payment(bot, payment_id: int, payment_data: di
             await bot.send_message(
                 financier_id, 
                 notification_text, 
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление финансисту {financier_id}: {e}")
@@ -141,9 +141,9 @@ async def notify_managers_low_balance(bot):
     current_balance = await BalanceDB.get_balance()
     
     notification_text = (
-        f"⚠️ **НИЗКИЙ БАЛАНС!**\n\n"
-        f"💰 **Текущий баланс:** {current_balance:.2f}$\n"
-        f"📉 **Порог:** {config.LOW_BALANCE_THRESHOLD}$\n\n"
+        f"⚠️ <b>НИЗКИЙ БАЛАНС!</b>\n\n"
+        f"💰 <b>Текущий баланс:</b> {current_balance:.2f}$\n"
+        f"📉 <b>Порог:</b> {config.LOW_BALANCE_THRESHOLD}$\n\n"
         f"💳 Необходимо пополнение баланса!"
     )
     
@@ -152,7 +152,7 @@ async def notify_managers_low_balance(bot):
             await bot.send_message(
                 manager_id,
                 notification_text,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление руководителю {manager_id}: {e}")
@@ -188,12 +188,12 @@ async def my_payments_handler(message: Message):
         
         if not payments:
             await message.answer(
-                "📝 **Ваши заявки**\n\n"
+                "📝 <b>Ваши заявки</b>\n\n"
                 "У вас пока нет заявок на оплату.\n\n"
                 "Создайте заявку голосовым сообщением или текстом:\n"
                 "• 'Нужна оплата Фейсбук 100$ проект Альфа'\n"
                 "• 'Оплати Гугл Адс 50 долларов криптой'",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             return
             
@@ -201,30 +201,30 @@ async def my_payments_handler(message: Message):
         pending = [p for p in payments if p['status'] == 'pending']
         paid = [p for p in payments if p['status'] == 'paid']
         
-        message_parts = ["📝 **Ваши заявки**\n"]
+        message_parts = ["📝 <b>Ваши заявки</b>\n"]
         
         if pending:
-            message_parts.append("⏳ **Ожидают подтверждения:**")
+            message_parts.append("⏳ <b>Ожидают подтверждения:</b>")
             for payment in pending[-5:]:  # Последние 5
                 message_parts.append(
-                    f"• ID {payment['id']}: **{payment['amount']}$** - {payment['service_name']}\n"
+                    f"• ID {payment['id']}: <b>{payment['amount']}$</b> - {payment['service_name']}\n"
                     f"  📋 {payment['project_name']} | 💳 {payment['payment_method']}"
                 )
             message_parts.append("")
             
         if paid:
-            message_parts.append("✅ **Последние оплаченные:**")
+            message_parts.append("✅ <b>Последние оплаченные:</b>")
             for payment in paid[-3:]:  # Последние 3
                 message_parts.append(
-                    f"• ID {payment['id']}: **{payment['amount']}$** - {payment['service_name']}"
+                    f"• ID {payment['id']}: <b>{payment['amount']}$</b> - {payment['service_name']}"
                 )
             message_parts.append("")
             
-        message_parts.append(f"📊 **Всего заявок:** {len(payments)}")
+        message_parts.append(f"📊 <b>Всего заявок:</b> {len(payments)}")
         
         await message.answer(
             "\n".join(message_parts),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -242,12 +242,12 @@ async def last_payment_handler(message: Message):
         
         if not payments:
             await message.answer(
-                "📝 **Последняя заявка**\n\n"
+                "📝 <b>Последняя заявка</b>\n\n"
                 "У вас пока нет заявок на оплату.\n\n"
                 "Создайте заявку голосовым сообщением или текстом:\n"
                 "• 'Нужна оплата Фейсбук 100$ проект Альфа'\n"
                 "• 'Оплати Гугл Адс 50 долларов криптой'",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             return
             
@@ -265,16 +265,16 @@ async def last_payment_handler(message: Message):
         created_date = last_payment['created_at'][:16].replace('T', ' ')
         
         await message.answer(
-            f"📝 **Последняя заявка**\n\n"
-            f"🆔 **ID:** {last_payment['id']}\n"
-            f"💰 **Сумма:** {last_payment['amount']}$\n"
-            f"🛍️ **Сервис:** {last_payment['service_name']}\n"
-            f"📋 **Проект:** {last_payment['project_name']}\n"
-            f"💳 **Способ оплаты:** {last_payment['payment_method']}\n"
-            f"📅 **Создана:** {created_date}\n"
-            f"📊 **Статус:** {status_emoji}\n\n"
+            f"📝 <b>Последняя заявка</b>\n\n"
+            f"🆔 <b>ID:</b> {last_payment['id']}\n"
+            f"💰 <b>Сумма:</b> {last_payment['amount']}$\n"
+            f"🛍️ <b>Сервис:</b> {last_payment['service_name']}\n"
+            f"📋 <b>Проект:</b> {last_payment['project_name']}\n"
+            f"💳 <b>Способ оплаты:</b> {last_payment['payment_method']}\n"
+            f"📅 <b>Создана:</b> {created_date}\n"
+            f"📊 <b>Статус:</b> {status_emoji}\n\n"
             f"💡 Для просмотра всех заявок скажите: 'Мои заявки'",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     except Exception as e:
