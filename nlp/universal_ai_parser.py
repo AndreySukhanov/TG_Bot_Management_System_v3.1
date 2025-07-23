@@ -27,10 +27,12 @@ class UniversalAIParser:
 ТИПЫ ОПЕРАЦИЙ:
 1. "balance_add" - пополнение баланса
 2. "balance_reset" - обнуление баланса  
-3. "payment_request" - заявка на оплату
-4. "analytics_query" - аналитический запрос
-5. "system_command" - системная команда
-6. "unknown" - неопределенное сообщение
+3. "payment_request" - заявка на оплату (маркетологи)
+4. "payment_confirm" - подтверждение оплаты (финансисты)
+5. "analytics_query" - простой аналитический запрос  
+6. "ai_analytics" - сложный AI-аналитический запрос (руководители)
+7. "system_command" - системная команда (помощь, старт, дашборд)
+8. "unknown" - неопределенное сообщение
 
 ПРАВИЛА АНАЛИЗА:
 
@@ -49,10 +51,28 @@ class UniversalAIParser:
 - Содержит сумму и платформу/сервис
 - Может содержать проект и способ оплаты
 
-АНАЛИТИЧЕСКИЙ ЗАПРОС (analytics_query):
+ПОДТВЕРЖДЕНИЕ ОПЛАТЫ (payment_confirm):
+- Ключевые слова: оплачено, подтверждаю, сделано, готово + номер заявки
+- Должен содержать ID платежа
+
+ПРОСТОЙ АНАЛИТИЧЕСКИЙ ЗАПРОС (analytics_query):
+- Простые запросы: покажи баланс, баланс, статистика, мои заявки, последние операции
+- Стандартные команды без сложной логики
+- История операций, последние платежи, статус заявок
+- Сводная информация, отчеты
+- Одиночное слово "баланс" - это запрос баланса
+
+СЛОЖНЫЙ AI-АНАЛИТИЧЕСКИЙ ЗАПРОС (ai_analytics):
+- Сложные вопросы: сколько человек в команде, какие платежи были на неделе
 - Вопросительные слова: сколько, какой, что, как, где, когда
-- Запросы информации о балансе, статистике, командах
-- Заканчивается на "?"
+- Требует AI-анализа данных
+
+СИСТЕМНАЯ КОМАНДА (system_command):
+- Помощь, справка, старт, меню, дашборд, AI помощник
+- Примеры, форматы, естественный язык, натуральный язык
+- Отчеты, сводка, операции, подтверждение
+- "естественный язык" и "натуральный язык" - всегда system_command
+- Служебные команды бота
 
 ФОРМАТ ОТВЕТА - строго JSON:
 {
@@ -104,7 +124,7 @@ class UniversalAIParser:
     "confidence": 0.97
 }
 
-"какой сейчас баланс?"
+"покажи баланс"
 → {
     "operation_type": "analytics_query",
     "amount": null,
@@ -113,6 +133,114 @@ class UniversalAIParser:
     "project": null,
     "payment_method": null,
     "payment_details": null,
+    "confidence": 0.95
+}
+
+"оплачено 123"
+→ {
+    "operation_type": "payment_confirm",
+    "amount": null,
+    "description": "подтверждение оплаты заявки",
+    "platform": null,
+    "project": null,
+    "payment_method": null,
+    "payment_details": null,
+    "payment_id": 123,
+    "confidence": 0.98
+}
+
+"сколько человек в команде?"
+→ {
+    "operation_type": "ai_analytics",
+    "amount": null,
+    "description": "сложный аналитический запрос о размере команды",
+    "platform": null,
+    "project": null,
+    "payment_method": null,
+    "payment_details": null,
+    "confidence": 0.92
+}
+
+"помощь"
+→ {
+    "operation_type": "system_command",
+    "amount": null,
+    "description": "запрос справочной информации",
+    "platform": null,
+    "project": null,
+    "payment_method": null,
+    "payment_details": null,
+    "confidence": 0.99
+}
+
+"открой дашборд"
+→ {
+    "operation_type": "system_command",
+    "description": "запрос веб-дашборда",
+    "confidence": 0.98
+}
+
+"покажи примеры заявок"
+→ {
+    "operation_type": "system_command", 
+    "description": "запрос примеров создания заявок",
+    "confidence": 0.97
+}
+
+"мои операции"
+→ {
+    "operation_type": "analytics_query",
+    "description": "запрос истории операций пользователя",
+    "confidence": 0.95
+}
+
+"последние операции"
+→ {
+    "operation_type": "analytics_query",  
+    "description": "запрос недавних операций в системе",
+    "confidence": 0.96
+}
+
+"покажи последние операции"
+→ {
+    "operation_type": "analytics_query",
+    "description": "запрос отображения недавних операций",
+    "confidence": 0.97
+}
+
+"отчет за день"
+→ {
+    "operation_type": "analytics_query",
+    "description": "запрос сводки за день",
+    "confidence": 0.94
+}
+
+"добавь 1000 долларов на баланс"
+→ {
+    "operation_type": "balance_add",
+    "amount": 1000,
+    "description": "пополнение баланса на 1000 долларов",
+    "confidence": 0.98
+}
+
+"баланс"
+→ {
+    "operation_type": "analytics_query",
+    "description": "запрос текущего баланса",
+    "confidence": 0.98
+}
+
+"естественный язык"
+→ {
+    "operation_type": "system_command",
+    "description": "запрос примеров естественного языка",
+    "confidence": 0.99
+}
+
+"как дела?"
+→ {
+    "operation_type": "ai_analytics",
+    "description": "общий запрос о состоянии дел/статистике",
     "confidence": 0.95
 }
 
@@ -197,8 +325,8 @@ class UniversalAIParser:
         
         # Проверка типа операции
         valid_operations = [
-            "balance_add", "balance_reset", "payment_request", 
-            "analytics_query", "system_command", "unknown"
+            "balance_add", "balance_reset", "payment_request", "payment_confirm",
+            "analytics_query", "ai_analytics", "system_command", "unknown"
         ]
         if data["operation_type"] not in valid_operations:
             logger.warning(f"Неверный тип операции: {data['operation_type']}")
@@ -217,6 +345,13 @@ class UniversalAIParser:
                 logger.warning(f"Неверная сумма: {amount}")
                 return False
         
+        # Проверка payment_id для подтверждения оплаты
+        if data["operation_type"] == "payment_confirm":
+            payment_id = data.get("payment_id")
+            if payment_id is not None and (not isinstance(payment_id, (int, float)) or payment_id <= 0):
+                logger.warning(f"Неверный payment_id: {payment_id}")
+                return False
+        
         return True
     
     def _normalize_parsed_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -229,6 +364,7 @@ class UniversalAIParser:
             "project": str(data.get("project", "")).strip() if data.get("project") else None,
             "payment_method": str(data.get("payment_method", "")).strip() if data.get("payment_method") else None,
             "payment_details": str(data.get("payment_details", "")).strip() if data.get("payment_details") else None,
+            "payment_id": int(data["payment_id"]) if data.get("payment_id") is not None else None,
             "confidence": float(data.get("confidence", 0))
         }
         

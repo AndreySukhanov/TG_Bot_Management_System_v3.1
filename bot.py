@@ -46,14 +46,14 @@ async def main():
     await init_database()
     logger.info("База данных инициализирована")
     
-    # Регистрация обработчиков
-    setup_common_handlers(dp)
-    setup_menu_handlers(dp)
+    # Регистрация обработчиков (ВАЖЕН ПОРЯДОК!)
+    setup_voice_handlers(dp)      # ПЕРВЫМИ! Голосовые сообщения должны обрабатываться до common
     setup_command_handlers(dp)
-    setup_voice_handlers(dp)
     setup_marketer_handlers(dp)
     setup_financier_handlers(dp)
     setup_manager_handlers(dp)
+    setup_menu_handlers(dp)
+    setup_common_handlers(dp)     # ПОСЛЕДНИМИ! Чтобы не перехватывать специфические команды
     
     logger.info("Обработчики зарегистрированы")
     
