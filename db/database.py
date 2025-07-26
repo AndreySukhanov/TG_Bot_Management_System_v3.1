@@ -280,6 +280,46 @@ class BalanceDB:
             logger.info(f"С баланса списано {amount}$")
     
     @staticmethod
+    async def reset_balance_to_zero(description: str = "Обнуление баланса"):
+        """Сброс баланса к нулю с правильной записью в историю"""
+        config = Config()
+        
+        # Получаем текущий баланс
+        current_balance = await BalanceDB.get_balance()
+        
+        # Если баланс уже 0, ничего не делаем
+        if current_balance == 0:
+            return
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            # Устанавливаем баланс в 0
+            await db.execute("""
+                UPDATE balance 
+                SET current_balance = 0,
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """)
+            
+            # Записываем транзакцию
+            await db.execute("""
+                INSERT INTO transactions 
+                (user_id, transaction_type, amount, description, payment_id)
+                VALUES (?, 'reset', ?, ?, ?)
+            """, (0, current_balance, description, 0))
+            
+            # Записываем в историю баланса операцию, которая приводит к нулю
+            # Если было 400$, записываем -400$ чтобы привести к 0
+            reset_amount = -current_balance
+            await db.execute("""
+                INSERT INTO balance_history 
+                (amount, description, user_id, transaction_type)
+                VALUES (?, ?, ?, ?)
+            """, (reset_amount, description, 0, 'reset'))
+            
+            await db.commit()
+            logger.info(f"Баланс сброшен к нулю (было {current_balance}$)")
+    
+    @staticmethod
     async def check_low_balance() -> bool:
         """Проверка на низкий баланс"""
         config = Config()

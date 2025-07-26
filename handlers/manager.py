@@ -146,7 +146,7 @@ async def reset_balance_handler(message: Message):
         current_balance = await BalanceDB.get_balance()
         
         # Обнуляем баланс (устанавливаем в 0)
-        await reset_balance_to_zero()
+        await reset_balance_to_zero(user_id)
         
         # Отправляем подтверждение
         await message.answer(
@@ -174,7 +174,7 @@ async def reset_balance_handler(message: Message):
         )
 
 
-async def reset_balance_to_zero():
+async def reset_balance_to_zero(user_id: int = 0):
     """Обнуляет баланс в базе данных"""
     config = Config()
     
@@ -185,15 +185,8 @@ async def reset_balance_to_zero():
     if current_balance == 0:
         return
     
-    # Вычисляем сумму для списания
-    amount_to_subtract = current_balance
-    
-    # Списываем весь баланс
-    await BalanceDB.subtract_balance(
-        amount_to_subtract,
-        payment_id=0,  # Специальный ID для обнуления
-        description="Обнуление баланса руководителем"
-    )
+    # Используем специальную функцию для сброса баланса к нулю
+    await BalanceDB.reset_balance_to_zero(description=f"Обнуление баланса руководителем (ID: {user_id})")
 
 
 async def notify_financiers_balance_reset(bot, old_balance: float, username: str):
