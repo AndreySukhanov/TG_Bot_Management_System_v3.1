@@ -208,7 +208,7 @@ async def reports_command(message: Message):
 
 
 async def summary_command(message: Message):
-    """Команда /summary - сводка дня"""
+    """Команда /summary - сводка за день"""
     user_id = message.from_user.id
     config = Config()
     
@@ -218,9 +218,85 @@ async def summary_command(message: Message):
     
     log_action(user_id, "summary_command", "")
     
-    # Получаем статистику (используем существующий обработчик)
-    from handlers.manager import statistics_handler
-    await statistics_handler(message)
+    try:
+        from db.database import PaymentDB, BalanceDB
+        from datetime import datetime, date
+        import aiosqlite
+        
+        # Получаем платежи за сегодня
+        db_path = config.DATABASE_PATH
+        async with aiosqlite.connect(db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            # Платежи за сегодня
+            today = date.today().isoformat()
+            cursor = await db.execute("""
+                SELECT COUNT(*) as count, SUM(amount) as total, status
+                FROM payments 
+                WHERE DATE(created_at) = ?
+                GROUP BY status
+            """, (today,))
+            
+            daily_stats = {}
+            rows = await cursor.fetchall()
+            for row in rows:
+                daily_stats[row['status']] = {
+                    'count': row['count'],
+                    'total': float(row['total']) if row['total'] else 0.0
+                }
+            
+            # Топ проекты за сегодня
+            cursor = await db.execute("""
+                SELECT project_name, COUNT(*) as count, SUM(amount) as total
+                FROM payments 
+                WHERE DATE(created_at) = ?
+                GROUP BY project_name
+                ORDER BY total DESC
+                LIMIT 3
+            """, (today,))
+            
+            top_projects = await cursor.fetchall()
+        
+        # Формируем сводку
+        current_balance = await BalanceDB.get_balance()
+        
+        pending_count = daily_stats.get('pending', {}).get('count', 0)
+        pending_total = daily_stats.get('pending', {}).get('total', 0.0)
+        paid_count = daily_stats.get('paid', {}).get('count', 0)
+        paid_total = daily_stats.get('paid', {}).get('total', 0.0)
+        total_requests = pending_count + paid_count
+        
+        message_parts = []
+        message_parts.append(f"📋 <b>СВОДКА ЗА ДЕНЬ</b>")
+        message_parts.append(f"📅 {datetime.now().strftime('%d.%m.%Y')}")
+        message_parts.append("")
+        
+        if total_requests > 0:
+            message_parts.append("📊 <b>Заявки за день:</b>")
+            message_parts.append(f"📝 Всего создано: {total_requests}")
+            if paid_count > 0:
+                message_parts.append(f"✅ Оплачено: {paid_count} на {paid_total:.2f}$")
+            if pending_count > 0:
+                message_parts.append(f"⏳ Ожидает: {pending_count} на {pending_total:.2f}$")
+            message_parts.append("")
+            
+            # Топ проекты
+            if top_projects:
+                message_parts.append("🏆 <b>Топ проекты дня:</b>")
+                for i, project in enumerate(top_projects, 1):
+                    message_parts.append(f"{i}. {project['project_name']}: {project['total']:.2f}$ ({project['count']} заявок)")
+                message_parts.append("")
+        else:
+            message_parts.append("📝 <b>Заявок за сегодня не было</b>")
+            message_parts.append("")
+        
+        message_parts.append(f"💰 <b>Текущий баланс:</b> {current_balance:.2f}$")
+        
+        await message.answer("\n".join(message_parts), parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения сводки за день: {e}")
+        await message.answer("❌ Произошла ошибка при получении сводки за день.")
 
 
 # Общая команда меню
