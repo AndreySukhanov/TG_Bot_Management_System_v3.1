@@ -44,6 +44,8 @@ class BotCommandManager:
             ],
             "financier": [
                 BotCommand(command="balance", description="💰 Показать баланс"),
+                BotCommand(command="confirm", description="✅ Инструкции по подтверждению"),
+                BotCommand(command="operations", description="📊 История операций"),
             ],
             "manager": [
                 BotCommand(command="balance", description="💰 Показать баланс"),
@@ -51,11 +53,20 @@ class BotCommandManager:
                 BotCommand(command="ai", description="🤖 AI-помощник для аналитики"),
                 BotCommand(command="dashboard", description="📊 Веб-дашборд аналитики"),
                 BotCommand(command="resetbalance", description="⚠️ Обнулить баланс"),
+                BotCommand(command="addbalance", description="💵 Инструкции по пополнению"),
+                BotCommand(command="reports", description="📈 Отчеты системы"),
+                BotCommand(command="summary", description="📋 Сводка за день"),
                 BotCommand(command="projects", description="📋 Управление проектами"),
                 BotCommand(command="addproject", description="➕ Создать проект"),
+                BotCommand(command="activate", description="✅ Активировать проект"),
+                BotCommand(command="deactivate", description="❌ Деактивировать проект"),
                 BotCommand(command="assign", description="👤 Назначить проект"),
+                BotCommand(command="unassign", description="🚫 Отозвать проект"),
                 BotCommand(command="assignments", description="📊 Просмотр назначений"),
+                BotCommand(command="userprojects", description="👥 Проекты пользователя"),
                 BotCommand(command="checkinvalid", description="🔍 Проверить некорректные заявки"),
+                BotCommand(command="reject", description="❌ Отклонить заявку"),
+                BotCommand(command="rejectall", description="🗑️ Отклонить все некорректные"),
             ]
         }
         
