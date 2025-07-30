@@ -79,6 +79,19 @@ async def init_database():
             )
         """)
         
+        # Таблица проектов
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                status TEXT DEFAULT 'active',
+                created_by INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Проверяем, есть ли запись в balance, если нет - создаем
         cursor = await db.execute("SELECT COUNT(*) FROM balance")
         count = await cursor.fetchone()
@@ -366,4 +379,132 @@ class BalanceDB:
             """, (last_alert.isoformat(),))
             
             expense_count = await cursor.fetchone()
-            return expense_count[0] > 0 
+            return expense_count[0] > 0
+
+
+class ProjectDB:
+    """Класс для работы с проектами"""
+    
+    @staticmethod
+    async def create_project(name: str, description: str = "", manager_id: int = 0) -> int:
+        """Создание нового проекта"""
+        config = Config()
+        
+        # Валидация
+        if not name or not name.strip():
+            raise ValueError("Название проекта не может быть пустым")
+        
+        name = name.strip()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            try:
+                cursor = await db.execute("""
+                    INSERT INTO projects (name, description, created_by)
+                    VALUES (?, ?, ?)
+                """, (name, description.strip(), manager_id))
+                
+                project_id = cursor.lastrowid
+                await db.commit()
+                
+                logger.info(f"Создан проект: {name} (ID: {project_id})")
+                return project_id
+                
+            except aiosqlite.IntegrityError:
+                raise ValueError(f"Проект с названием '{name}' уже существует")
+    
+    @staticmethod
+    async def get_active_projects() -> List[Dict[str, Any]]:
+        """Получение списка активных проектов"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT id, name, description, created_at
+                FROM projects 
+                WHERE status = 'active'
+                ORDER BY name
+            """)
+            
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+    
+    @staticmethod
+    async def get_all_projects() -> List[Dict[str, Any]]:
+        """Получение всех проектов"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT id, name, description, status, created_by, created_at
+                FROM projects 
+                ORDER BY created_at DESC
+            """)
+            
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+    
+    @staticmethod
+    async def deactivate_project(project_name: str) -> bool:
+        """Деактивация проекта"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                UPDATE projects 
+                SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+                WHERE name = ? AND status = 'active'
+            """, (project_name,))
+            
+            affected_rows = cursor.rowcount
+            await db.commit()
+            
+            if affected_rows > 0:
+                logger.info(f"Проект деактивирован: {project_name}")
+                return True
+            else:
+                logger.warning(f"Проект не найден или уже неактивен: {project_name}")
+                return False
+    
+    @staticmethod
+    async def activate_project(project_name: str) -> bool:
+        """Активация проекта"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                UPDATE projects 
+                SET status = 'active', updated_at = CURRENT_TIMESTAMP
+                WHERE name = ? AND status = 'inactive'
+            """, (project_name,))
+            
+            affected_rows = cursor.rowcount
+            await db.commit()
+            
+            if affected_rows > 0:
+                logger.info(f"Проект активирован: {project_name}")
+                return True
+            else:
+                logger.warning(f"Проект не найден или уже активен: {project_name}")
+                return False
+    
+    @staticmethod
+    async def project_exists(project_name: str) -> bool:
+        """Проверка существования активного проекта"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                SELECT COUNT(*) FROM projects 
+                WHERE name = ? AND status = 'active'
+            """, (project_name,))
+            
+            count = await cursor.fetchone()
+            return count[0] > 0
+    
+    @staticmethod
+    async def get_project_names() -> List[str]:
+        """Получение списка названий активных проектов"""
+        projects = await ProjectDB.get_active_projects()
+        return [project['name'] for project in projects] 

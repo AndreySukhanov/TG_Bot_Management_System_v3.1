@@ -11,7 +11,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from utils.config import Config
 from utils.logger import log_action
-from db.database import BalanceDB, PaymentDB
+from db.database import BalanceDB, PaymentDB, ProjectDB
 from nlp.universal_ai_parser import UniversalAIParser
 from nlp.manager_ai_assistant import process_manager_query
 from handlers.nlp_command_handler import smart_message_router
@@ -562,6 +562,198 @@ async def dashboard_command_handler(message: Message):
     )
 
 
+async def projects_list_handler(message: Message):
+    """Обработчик команды /projects - список проектов"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    try:
+        projects = await ProjectDB.get_all_projects()
+        
+        if not projects:
+            await message.answer("📋 Список проектов пуст.\n\nИспользуйте команду:\n<code>/addproject Название проекта</code>", parse_mode="HTML")
+            return
+        
+        active_projects = [p for p in projects if p['status'] == 'active']
+        inactive_projects = [p for p in projects if p['status'] == 'inactive']
+        
+        message_text = "📋 <b>УПРАВЛЕНИЕ ПРОЕКТАМИ</b>\n\n"
+        
+        if active_projects:
+            message_text += "✅ <b>Активные проекты:</b>\n"
+            for project in active_projects:
+                description = f" - {project['description']}" if project['description'] else ""
+                message_text += f"• <b>{project['name']}</b>{description}\n"
+            message_text += "\n"
+        
+        if inactive_projects:
+            message_text += "❌ <b>Неактивные проекты:</b>\n"
+            for project in inactive_projects:
+                description = f" - {project['description']}" if project['description'] else ""
+                message_text += f"• <b>{project['name']}</b>{description}\n"
+            message_text += "\n"
+        
+        message_text += "<b>📝 Команды управления:</b>\n"
+        message_text += "• <code>/addproject Название</code> - добавить проект\n"
+        message_text += "• <code>/deactivate Название</code> - деактивировать\n"
+        message_text += "• <code>/activate Название</code> - активировать\n\n"
+        message_text += f"📊 <b>Всего проектов:</b> {len(projects)}"
+        
+        await message.answer(message_text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения списка проектов: {e}")
+        await message.answer("❌ Произошла ошибка при получении списка проектов.")
+
+
+async def add_project_handler(message: Message):
+    """Обработчик команды /addproject - добавление проекта"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Извлекаем название проекта
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "❌ Укажите название проекта.\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/addproject Alpha Marketing</code>\n\n"
+            "<b>Или с описанием:</b>\n"
+            "<code>/addproject Beta Campaign - Реклама в соцсетях</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    project_input = command_parts[1].strip()
+    
+    # Парсим название и описание (через " - ")
+    if " - " in project_input:
+        project_name, description = project_input.split(" - ", 1)
+        project_name = project_name.strip()
+        description = description.strip()
+    else:
+        project_name = project_input
+        description = ""
+    
+    if not project_name:
+        await message.answer("❌ Название проекта не может быть пустым.")
+        return
+    
+    try:
+        project_id = await ProjectDB.create_project(project_name, description, user_id)
+        
+        response_text = f"✅ <b>ПРОЕКТ СОЗДАН</b>\n\n"
+        response_text += f"📝 <b>Название:</b> {project_name}\n"
+        if description:
+            response_text += f"📋 <b>Описание:</b> {description}\n"
+        response_text += f"🆔 <b>ID:</b> {project_id}\n"
+        response_text += f"📅 <b>Создан:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+        response_text += "🎯 Теперь маркетологи могут создавать заявки по этому проекту!"
+        
+        await message.answer(response_text, parse_mode="HTML")
+        
+        log_action(user_id, "project_created", f"Создан проект: {project_name}")
+        
+    except ValueError as e:
+        await message.answer(f"❌ {str(e)}")
+    except Exception as e:
+        logger.error(f"Ошибка создания проекта: {e}")
+        await message.answer("❌ Произошла ошибка при создании проекта.")
+
+
+async def deactivate_project_handler(message: Message):
+    """Обработчик команды /deactivate - деактивация проекта"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Извлекаем название проекта
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "❌ Укажите название проекта для деактивации.\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/deactivate Alpha Marketing</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    project_name = command_parts[1].strip()
+    
+    try:
+        if await ProjectDB.deactivate_project(project_name):
+            await message.answer(
+                f"✅ <b>ПРОЕКТ ДЕАКТИВИРОВАН</b>\n\n"
+                f"📝 <b>Проект:</b> {project_name}\n"
+                f"❌ <b>Статус:</b> Неактивен\n\n"
+                f"ℹ️ Маркетологи больше не смогут создавать заявки по этому проекту.\n"
+                f"Для активации используйте: <code>/activate {project_name}</code>",
+                parse_mode="HTML"
+            )
+            log_action(user_id, "project_deactivated", f"Деактивирован проект: {project_name}")
+        else:
+            await message.answer(f"❌ Проект '{project_name}' не найден или уже неактивен.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка деактивации проекта: {e}")
+        await message.answer("❌ Произошла ошибка при деактивации проекта.")
+
+
+async def activate_project_handler(message: Message):
+    """Обработчик команды /activate - активация проекта"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Извлекаем название проекта
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "❌ Укажите название проекта для активации.\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/activate Alpha Marketing</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    project_name = command_parts[1].strip()
+    
+    try:
+        if await ProjectDB.activate_project(project_name):
+            await message.answer(
+                f"✅ <b>ПРОЕКТ АКТИВИРОВАН</b>\n\n"
+                f"📝 <b>Проект:</b> {project_name}\n"
+                f"✅ <b>Статус:</b> Активен\n\n"
+                f"🎯 Маркетологи снова могут создавать заявки по этому проекту!",
+                parse_mode="HTML"
+            )
+            log_action(user_id, "project_activated", f"Активирован проект: {project_name}")
+        else:
+            await message.answer(f"❌ Проект '{project_name}' не найден или уже активен.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка активации проекта: {e}")
+        await message.answer("❌ Произошла ошибка при активации проекта.")
+
+
 def setup_manager_handlers(dp: Dispatcher):
     """Регистрация обработчиков для руководителей"""
     
@@ -607,5 +799,30 @@ def setup_manager_handlers(dp: Dispatcher):
     dp.message.register(
         dashboard_command_handler,
         Command("dashboard"),
+        is_manager
+    )
+    
+    # Команды управления проектами
+    dp.message.register(
+        projects_list_handler,
+        Command("projects"),
+        is_manager
+    )
+    
+    dp.message.register(
+        add_project_handler,
+        Command("addproject"),
+        is_manager
+    )
+    
+    dp.message.register(
+        deactivate_project_handler,
+        Command("deactivate"),
+        is_manager
+    )
+    
+    dp.message.register(
+        activate_project_handler,
+        Command("activate"),
         is_manager
     ) 

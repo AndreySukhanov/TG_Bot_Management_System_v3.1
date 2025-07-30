@@ -10,7 +10,7 @@ from utils.logger import log_action
 from nlp.parser import PaymentParser
 from nlp.hybrid_parser import HybridPaymentParser
 from handlers.nlp_command_handler import smart_message_router
-from db.database import PaymentDB, BalanceDB
+from db.database import PaymentDB, BalanceDB, ProjectDB
 from utils.file_handler import save_file
 import logging
 import re
@@ -65,6 +65,26 @@ async def payment_request_handler(message: Message):
             except Exception as e:
                 logger.error(f"Ошибка сохранения файла: {e}")
                 await message.answer("⚠️ Не удалось сохранить прикрепленный файл, но заявка будет создана.")
+        
+        # Валидация проекта
+        project_exists = await ProjectDB.project_exists(payment_data["project_name"])
+        if not project_exists:
+            # Получаем список активных проектов для подсказки
+            active_projects = await ProjectDB.get_project_names()
+            
+            error_message = f"❌ <b>Проект '{payment_data['project_name']}' не найден или неактивен.</b>\n\n"
+            
+            if active_projects:
+                error_message += "📋 <b>Доступные проекты:</b>\n"
+                for project in active_projects:
+                    error_message += f"• {project}\n"
+                error_message += "\n💡 Используйте точное название проекта из списка выше."
+            else:
+                error_message += "📋 <b>Нет активных проектов.</b>\n\n"
+                error_message += "ℹ️ Обратитесь к руководителю для создания проекта."
+            
+            await message.answer(error_message, parse_mode="HTML")
+            return
         
         # Создание заявки в базе данных
         payment_id = await PaymentDB.create_payment(
