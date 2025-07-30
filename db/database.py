@@ -195,6 +195,48 @@ class PaymentDB:
             
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+    
+    @staticmethod
+    async def reject_payment(payment_id: int, reason: str = "", manager_id: int = 0):
+        """Отклонение заявки на оплату"""
+        config = Config()
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            # Обновляем статус на rejected
+            await db.execute("""
+                UPDATE payments 
+                SET status = 'rejected', 
+                    confirmation_hash = ?, 
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND status = 'pending'
+            """, (reason, payment_id))
+            
+            affected_rows = db.total_changes
+            await db.commit()
+            
+            if affected_rows > 0:
+                logger.info(f"Заявка {payment_id} отклонена руководителем {manager_id}: {reason}")
+                return True
+            else:
+                logger.warning(f"Заявка {payment_id} не найдена или уже обработана")
+                return False
+    
+    @staticmethod
+    async def get_payments_with_invalid_projects() -> List[Dict[str, Any]]:
+        """Получение заявок с некорректными проектами"""
+        config = Config()
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT p.* 
+                FROM payments p
+                LEFT JOIN projects pr ON p.project_name = pr.name AND pr.status = 'active'
+                WHERE p.status = 'pending' 
+                  AND pr.name IS NULL
+                ORDER BY p.created_at DESC
+            """)
+            
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
 
 class BalanceDB:

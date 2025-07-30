@@ -754,6 +754,214 @@ async def activate_project_handler(message: Message):
         await message.answer("❌ Произошла ошибка при активации проекта.")
 
 
+async def check_invalid_projects_handler(message: Message):
+    """Обработчик команды /checkinvalid - проверка заявок с некорректными проектами"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    try:
+        invalid_payments = await PaymentDB.get_payments_with_invalid_projects()
+        
+        if not invalid_payments:
+            await message.answer(
+                "✅ <b>ПРОВЕРКА ПРОЕКТОВ</b>\n\n"
+                "👍 Все ожидающие заявки содержат корректные проекты!",
+                parse_mode="HTML"
+            )
+            return
+        
+        message_text = f"⚠️ <b>НАЙДЕНЫ ЗАЯВКИ С НЕКОРРЕКТНЫМИ ПРОЕКТАМИ</b>\n\n"
+        
+        for payment in invalid_payments[:10]:  # Показываем первые 10
+            message_text += (
+                f"🆔 <b>ID:</b> {payment['id']}\n"
+                f"💰 <b>Сумма:</b> {payment['amount']}$\n"
+                f"🛒 <b>Сервис:</b> {payment['service_name']}\n"
+                f"❌ <b>Проект:</b> {payment['project_name']}\n"
+                f"📅 <b>Дата:</b> {payment['created_at'][:16].replace('T', ' ')}\n\n"
+            )
+        
+        if len(invalid_payments) > 10:
+            message_text += f"… и ещё {len(invalid_payments) - 10} заявок\n\n"
+        
+        message_text += (
+            f"📂 <b>Всего найдено:</b> {len(invalid_payments)} заявок\n\n"
+            "<b>🚑 Команды для отклонения:</b>\n"
+            "• <code>/reject ID Причина</code> - отклонить конкретную заявку\n"
+            "• <code>/rejectall Причина</code> - отклонить все некорректные"
+        )
+        
+        await message.answer(message_text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Ошибка проверки некорректных проектов: {e}")
+        await message.answer("❌ Произошла ошибка при проверке проектов.")
+
+
+async def reject_payment_handler(message: Message):
+    """Обработчик команды /reject - отклонение конкретной заявки"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Парсим команду
+    command_parts = message.text.split(maxsplit=2)
+    if len(command_parts) < 3:
+        await message.answer(
+            "❌ Некорректный формат команды.\n\n"
+            "<b>Формат:</b>\n"
+            "<code>/reject ID Причина</code>\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/reject 123 Некорректный проект</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        payment_id = int(command_parts[1])
+        reason = command_parts[2]
+    except ValueError:
+        await message.answer("❌ ID заявки должен быть числом.")
+        return
+    
+    try:
+        # Получаем информацию о заявке
+        payment = await PaymentDB.get_payment(payment_id)
+        if not payment:
+            await message.answer(f"❌ Заявка с ID {payment_id} не найдена.")
+            return
+        
+        if payment['status'] != 'pending':
+            await message.answer(f"❌ Заявка {payment_id} уже обработана. Статус: {payment['status']}")
+            return
+        
+        # Отклоняем заявку
+        if await PaymentDB.reject_payment(payment_id, reason, user_id):
+            await message.answer(
+                f"✅ <b>ЗАЯВКА ОТКЛОНЕНА</b>\n\n"
+                f"🆔 <b>ID:</b> {payment_id}\n"
+                f"💰 <b>Сумма:</b> {payment['amount']}$\n"
+                f"🛒 <b>Сервис:</b> {payment['service_name']}\n"
+                f"📝 <b>Проект:</b> {payment['project_name']}\n"
+                f"❌ <b>Причина:</b> {reason}\n\n"
+                f"📨 Маркетолог получил уведомление.",
+                parse_mode="HTML"
+            )
+            
+            # Уведомляем маркетолога
+            await notify_marketer_payment_rejected(
+                message.bot,
+                payment['marketer_id'],
+                payment_id,
+                payment,
+                reason
+            )
+            
+            log_action(user_id, "payment_rejected", f"Отклонена заявка {payment_id}: {reason}")
+        else:
+            await message.answer("❌ Не удалось отклонить заявку.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка отклонения заявки: {e}")
+        await message.answer("❌ Произошла ошибка при отклонении заявки.")
+
+
+async def reject_all_invalid_handler(message: Message):
+    """Обработчик команды /rejectall - отклонение всех заявок с некорректными проектами"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Парсим причину
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "❌ Некорректный формат команды.\n\n"
+            "<b>Формат:</b>\n"
+            "<code>/rejectall Причина</code>\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/rejectall Некорректные проекты</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    reason = command_parts[1]
+    
+    try:
+        invalid_payments = await PaymentDB.get_payments_with_invalid_projects()
+        
+        if not invalid_payments:
+            await message.answer("❌ Нет заявок с некорректными проектами.")
+            return
+        
+        rejected_count = 0
+        rejected_payments = []
+        
+        for payment in invalid_payments:
+            if await PaymentDB.reject_payment(payment['id'], reason, user_id):
+                rejected_count += 1
+                rejected_payments.append(payment)
+                
+                # Уведомляем маркетолога
+                await notify_marketer_payment_rejected(
+                    message.bot,
+                    payment['marketer_id'],
+                    payment['id'],
+                    payment,
+                    reason
+                )
+        
+        await message.answer(
+            f"✅ <b>МАССОВОЕ ОТКЛОНЕНИЕ ЗАВЕРШЕНО</b>\n\n"
+            f"❌ <b>Отклонено заявок:</b> {rejected_count}\n"
+            f"❌ <b>Причина:</b> {reason}\n\n"
+            f"📨 Все маркетологи получили уведомления.",
+            parse_mode="HTML"
+        )
+        
+        log_action(user_id, "mass_payment_rejection", f"Массовое отклонение: {rejected_count} заявок - {reason}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка массового отклонения: {e}")
+        await message.answer("❌ Произошла ошибка при массовом отклонении заявок.")
+
+
+async def notify_marketer_payment_rejected(bot, marketer_id: int, payment_id: int, payment: dict, reason: str):
+    """Уведомление маркетолога об отклонении заявки"""
+    
+    notification_text = (
+        f"❌ <b>ЗАЯВКА ОТКЛОНЕНА</b>\n\n"
+        f"🆔 <b>ID заявки:</b> <code>{payment_id}</code>\n"
+        f"🛒 <b>Сервис:</b> {payment['service_name']}\n"
+        f"💰 <b>Сумма:</b> {payment['amount']}$\n"
+        f"📝 <b>Проект:</b> {payment['project_name']}\n\n"
+        f"❌ <b>Причина отклонения:</b>\n{reason}\n\n"
+        f"🔄 Пожалуйста, создайте новую заявку с корректным проектом."
+    )
+    
+    try:
+        await bot.send_message(
+            marketer_id,
+            notification_text,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.error(f"Не удалось отправить уведомление об отклонении маркетологу {marketer_id}: {e}")
+
+
 def setup_manager_handlers(dp: Dispatcher):
     """Регистрация обработчиков для руководителей"""
     
@@ -824,5 +1032,24 @@ def setup_manager_handlers(dp: Dispatcher):
     dp.message.register(
         activate_project_handler,
         Command("activate"),
+        is_manager
+    )
+    
+    # Команды проверки и отклонения заявок
+    dp.message.register(
+        check_invalid_projects_handler,
+        Command("checkinvalid"),
+        is_manager
+    )
+    
+    dp.message.register(
+        reject_payment_handler,
+        Command("reject"),
+        is_manager
+    )
+    
+    dp.message.register(
+        reject_all_invalid_handler,
+        Command("rejectall"),
         is_manager
     ) 
