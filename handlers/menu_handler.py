@@ -129,6 +129,34 @@ async def menu_button_handler(message: Message):
                     parse_mode="HTML"
                 )
                 
+            elif button_text == "📋 Управление проектами":
+                await message.answer(
+                    "📋 <b>Управление проектами</b>\n\n"
+                    "<b>Доступные команды:</b>\n\n"
+                    "🔍 <b>Просмотр:</b>\n"
+                    "• <code>/projects</code> - все проекты\n"
+                    "• <code>/assignments</code> - назначения проектов\n\n"
+                    "➕ <b>Создание:</b>\n"
+                    "• <code>/addproject Название</code>\n"
+                    "• <code>/addproject Название - Описание</code>\n\n"
+                    "⚙️ <b>Управление:</b>\n"
+                    "• <code>/activate Проект</code>\n"
+                    "• <code>/deactivate Проект</code>\n\n"
+                    "👤 <b>Назначения:</b>\n"
+                    "• <code>/assign USER_ID Проект</code>\n"
+                    "• <code>/unassign USER_ID Проект</code>\n"
+                    "• <code>/userprojects USER_ID</code>\n\n"
+                    "🔍 <b>Контроль качества:</b>\n"
+                    "• <code>/checkinvalid</code> - некорректные заявки\n"
+                    "• <code>/reject ID Причина</code>\n"
+                    "• <code>/rejectall Причина</code>",
+                    parse_mode="HTML"
+                )
+                
+            elif button_text == "🔍 Проверка заявок":
+                from handlers.manager import check_invalid_requests_handler
+                await check_invalid_requests_handler(message)
+                
     except Exception as e:
         logger.error(f"Ошибка обработки кнопки меню: {e}")
         await message.answer("❌ Произошла ошибка при обработке команды.")

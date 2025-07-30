@@ -109,33 +109,122 @@ async def get_balance_history(token_valid: bool = Depends(verify_token)):
 
 @app.get('/projects')
 async def get_projects(token_valid: bool = Depends(verify_token)):
+    """Получить все проекты из таблицы projects"""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT 
-                project_name,
-                COUNT(*) as payment_count,
-                SUM(amount) as total_amount,
-                AVG(amount) as avg_amount,
-                MAX(created_at) as last_payment
-            FROM payments 
-            WHERE project_name IS NOT NULL
-            GROUP BY project_name 
-            ORDER BY total_amount DESC
+                id, name, description, status, 
+                created_by, created_at, updated_at
+            FROM projects 
+            ORDER BY created_at DESC
         ''')
         
         projects = []
         for row in cursor.fetchall():
             projects.append({
-                'project_name': row['project_name'],
-                'payment_count': row['payment_count'],
-                'total_amount': float(row['total_amount']),
-                'avg_amount': float(row['avg_amount']),
-                'last_payment': row['last_payment']
+                'id': row['id'],
+                'name': row['name'],
+                'description': row['description'] or '',
+                'status': row['status'],
+                'created_by': row['created_by'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
             })
         
         return {'projects': projects}
+    finally:
+        conn.close()
+
+@app.get('/user-projects')
+async def get_user_projects(token_valid: bool = Depends(verify_token)):
+    """Получить все назначения проектов пользователям"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT 
+                up.id, up.user_id, up.project_name, 
+                up.assigned_by, up.assigned_at,
+                p.status as project_status
+            FROM user_projects up
+            LEFT JOIN projects p ON up.project_name = p.name
+            ORDER BY up.assigned_at DESC
+        ''')
+        
+        user_projects = []
+        for row in cursor.fetchall():
+            user_projects.append({
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'project_name': row['project_name'],
+                'assigned_by': row['assigned_by'],
+                'assigned_at': row['assigned_at'],
+                'project_status': row['project_status'] or 'unknown'
+            })
+        
+        return {'user_projects': user_projects}
+    finally:
+        conn.close()
+
+@app.get('/project-analytics')
+async def get_project_analytics(token_valid: bool = Depends(verify_token)):
+    """Получить аналитику по проектам"""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT 
+                p.name as project_name,
+                COALESCE(stats.total_requests, 0) as total_requests,
+                COALESCE(stats.total_amount, 0) as total_amount,
+                COALESCE(stats.pending_requests, 0) as pending_requests,
+                COALESCE(stats.pending_amount, 0) as pending_amount,
+                COALESCE(stats.rejected_requests, 0) as rejected_requests,
+                COALESCE(stats.paid_requests, 0) as paid_requests,
+                stats.last_request_date,
+                COALESCE(user_stats.active_users_count, 0) as active_users_count
+            FROM projects p
+            LEFT JOIN (
+                SELECT 
+                    project_name,
+                    COUNT(*) as total_requests,
+                    SUM(amount) as total_amount,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_requests,
+                    SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount,
+                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_requests,
+                    COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_requests,
+                    MAX(created_at) as last_request_date
+                FROM payments 
+                GROUP BY project_name
+            ) stats ON p.name = stats.project_name
+            LEFT JOIN (
+                SELECT 
+                    project_name,
+                    COUNT(DISTINCT user_id) as active_users_count
+                FROM user_projects
+                GROUP BY project_name
+            ) user_stats ON p.name = user_stats.project_name
+            WHERE p.status = 'active'
+            ORDER BY COALESCE(stats.total_amount, 0) DESC
+        ''')
+        
+        project_analytics = []
+        for row in cursor.fetchall():
+            project_analytics.append({
+                'project_name': row['project_name'],
+                'total_requests': row['total_requests'],
+                'total_amount': float(row['total_amount']) if row['total_amount'] else 0.0,
+                'pending_requests': row['pending_requests'],
+                'pending_amount': float(row['pending_amount']) if row['pending_amount'] else 0.0,
+                'rejected_requests': row['rejected_requests'],
+                'paid_requests': row['paid_requests'],
+                'last_request_date': row['last_request_date'],
+                'active_users_count': row['active_users_count']
+            })
+        
+        return {'project_analytics': project_analytics}
     finally:
         conn.close()
 
