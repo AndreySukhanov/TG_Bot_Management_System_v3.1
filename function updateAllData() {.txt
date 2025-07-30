@@ -1,0 +1,246 @@
+ function updateAllData() {
+    updatePayments();     // Лист 1: Все платежи
+    updateBalance();      // Лист 2: Баланс
+    updateTeam();         // Лист 3: Команда
+    updatePending();      // Лист 4: Ожидающие
+    updateToday();        // Лист 5: Сегодня
+  }
+
+  // ЛИСТ 1: ВСЕ ПЛАТЕЖИ (ваш существующий)
+  function updatePayments() {
+    const API_URL = 'http://165.232.145.149:8002/payments';
+    const TOKEN = 'RfgLep4Y7nWjXky5qA0lpwV2E6kyZiOBkrKrHo7cl3k';
+
+    const response = UrlFetchApp.fetch(API_URL, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+
+    const data = JSON.parse(response.getContentText());
+    const payments = data.payments;
+
+    let sheet = getOrCreateSheet('Платежи');
+    sheet.clear();
+
+    sheet.getRange(1, 1, 1, 8).setValues([['ID', 'Сервис', 'Сумма', 'Проект', 'Способ оплаты', 'Статус', 'Дата',
+  'Маркетолог']]);
+
+    if (payments.length > 0) {
+      const rows = payments.map(payment => [
+        payment.id,
+        payment.service_name,
+        payment.amount,
+        payment.project_name,
+        payment.payment_method,
+        payment.status,
+        payment.created_at,
+        payment.marketer_id
+      ]);
+      sheet.getRange(2, 1, rows.length, 8).setValues(rows);
+    }
+  }
+
+  
+  // ЛИСТ 2: БАЛАНС (с понятными именами пользователей)
+  function updateBalance() {
+    const sheetName = 'Баланс';
+    let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+
+    if (!sheet) {
+      sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
+    }
+
+    // Полностью очищаем лист
+    sheet.clear();
+
+    // Устанавливаем новые заголовки
+    sheet.getRange('A1:D1').setValues([['Дата', 'Сумма операции', 'Описание', 'Баланс после операции']]);
+
+    try {
+      const response = UrlFetchApp.fetch('http://165.232.145.149:8002/balance-history', {
+        headers: {
+          'Authorization': 'Bearer RfgLep4Y7nWjXky5qA0lpwV2E6kyZiOBkrKrHo7cl3k'
+        }
+      });
+
+      const data = JSON.parse(response.getContentText());
+      const balanceHistory = data.balance_history;
+
+      if (balanceHistory.length === 0) {
+        return;
+      }
+
+      // Сортируем данные по timestamp в хронологическом порядке (старые сначала)
+      const sortedHistory = balanceHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      // Вычисляем накопительный баланс в хронологическом порядке
+      let runningBalance = 0;
+      const balanceData = [];
+
+      for (const item of sortedHistory) {
+        runningBalance += item.amount;
+        balanceData.push([
+          item.timestamp,
+          item.amount,
+          item.description,
+          runningBalance
+        ]);
+      }
+
+      // Переворачиваем для отображения (новые записи сверху)
+      balanceData.reverse();
+
+      if (balanceData.length > 0) {
+        sheet.getRange(2, 1, balanceData.length, 4).setValues(balanceData);
+      }
+
+      console.log(`Обновлено ${balanceData.length} записей баланса`);
+
+    } catch (error) {
+      console.error('Ошибка при обновлении баланса:', error);
+    }
+  }
+
+  // ЛИСТ 3: КОМАНДА
+  function updateTeam() {
+    const API_URL = 'http://165.232.145.149:8002/users';
+    const TOKEN = 'RfgLep4Y7nWjXky5qA0lpwV2E6kyZiOBkrKrHo7cl3k';
+
+    const response = UrlFetchApp.fetch(API_URL, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+
+    const data = JSON.parse(response.getContentText());
+    const users = data.users;
+
+    let sheet = getOrCreateSheet('Команда');
+    sheet.clear();
+
+    sheet.getRange(1, 1, 1, 5).setValues([['ID сотрудника', 'Всего платежей', 'Потрачено', 'Средний платеж', 'Последняя активность']]);
+
+    if (users.length > 0) {
+      const rows = users.map(user => [
+        user.marketer_id,
+        user.total_payments,
+        user.total_spent,
+        user.avg_payment,
+        user.last_activity
+      ]);
+      sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+    }
+  }
+
+  // ЛИСТ 4: ОЖИДАЮЩИЕ ОПЛАТЫ
+  function updatePending() {
+    const API_URL = 'http://165.232.145.149:8002/payments';
+    const TOKEN = 'RfgLep4Y7nWjXky5qA0lpwV2E6kyZiOBkrKrHo7cl3k';
+
+    const response = UrlFetchApp.fetch(API_URL, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+
+    const data = JSON.parse(response.getContentText());
+    const pending = data.payments.filter(p => p.status === 'pending');
+
+    let sheet = getOrCreateSheet('Ожидающие');
+    sheet.clear();
+
+    sheet.getRange(1, 1, 1, 6).setValues([['ID', 'Сервис', 'Сумма', 'Проект', 'Дата', 'Маркетолог']]);
+
+    if (pending.length > 0) {
+      const rows = pending.map(payment => [
+        payment.id,
+        payment.service_name,
+        payment.amount,
+        payment.project_name,
+        payment.created_at,
+        payment.marketer_id
+      ]);
+      sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+    }
+  }
+
+  // ЛИСТ 5: СЕГОДНЯ
+  function updateToday() {
+    const API_URL = 'http://165.232.145.149:8002/daily-stats';
+    const TOKEN = 'RfgLep4Y7nWjXky5qA0lpwV2E6kyZiOBkrKrHo7cl3k';
+
+    const response = UrlFetchApp.fetch(API_URL, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    });
+
+    const data = JSON.parse(response.getContentText());
+    const stats = data.daily_stats;
+
+    let sheet = getOrCreateSheet('Сегодня');
+    sheet.clear();
+
+    sheet.getRange(1, 1, 1, 4).setValues([['Дата', 'Количество платежей', 'Общая сумма', 'Уникальных проектов']]);
+
+    if (stats.length > 0) {
+      const rows = stats.map(day => [
+        day.date,
+        day.payment_count,
+        day.total_amount,
+        day.unique_projects
+      ]);
+      sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+    }
+  }
+
+  // Вспомогательная функция
+  function getOrCreateSheet(name) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+    }
+    return sheet;
+  }
+
+  // ФУНКЦИЯ ОЧИСТКИ ДАННЫХ
+  function clearAndStop() {
+    // Очищаем данные во всех листах
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const allSheets = spreadsheet.getSheets();
+
+    console.log('Найденные листы:');
+    allSheets.forEach(sheet => {
+      console.log('- "' + sheet.getName() + '"');
+    });
+
+    // Очищаем все листы кроме заголовков
+    const possibleNames = [
+      'Платежи', 'Баланс', 'Команда', 'Ожидающие', 'Сегодня',
+      'Платежи ', 'Баланс ', 'Команда ', 'Ожидающие ', 'Сегодня ',
+      'payments', 'balance', 'team', 'pending', 'today'
+    ];
+
+    let clearedSheets = 0;
+
+    possibleNames.forEach(sheetName => {
+      const sheet = spreadsheet.getSheetByName(sheetName);
+      if (sheet && sheet.getLastRow() > 1) {
+        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clear();
+        console.log('Очищен лист: "' + sheetName + '"');
+        clearedSheets++;
+      }
+    });
+
+    // Останавливаем все триггеры автообновления
+    const triggers = ScriptApp.getProjectTriggers();
+    let deletedTriggers = 0;
+
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'updateAllData') {
+        ScriptApp.deleteTrigger(trigger);
+        deletedTriggers++;
+        console.log('Удален триггер автообновления');
+      }
+    });
+
+    console.log('✅ Результат:');
+    console.log('- Очищено листов: ' + clearedSheets);
+    console.log('- Удалено триггеров: ' + deletedTriggers);
+    console.log('- Автообновление остановлено');
+    console.log('- Таблица готова для новых данных');
+  }
