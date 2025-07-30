@@ -92,6 +92,19 @@ async def init_database():
             )
         """)
         
+        # Таблица назначений проектов пользователям
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS user_projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                project_name TEXT NOT NULL,
+                assigned_by INTEGER NOT NULL,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_name) REFERENCES projects (name),
+                UNIQUE(user_id, project_name)
+            )
+        """)
+        
         # Проверяем, есть ли запись в balance, если нет - создаем
         cursor = await db.execute("SELECT COUNT(*) FROM balance")
         count = await cursor.fetchone()
@@ -549,4 +562,118 @@ class ProjectDB:
     async def get_project_names() -> List[str]:
         """Получение списка названий активных проектов"""
         projects = await ProjectDB.get_active_projects()
-        return [project['name'] for project in projects] 
+        return [project['name'] for project in projects]
+
+
+class UserProjectDB:
+    """Класс для работы с назначениями проектов пользователям"""
+    
+    @staticmethod
+    async def assign_project_to_user(user_id: int, project_name: str, manager_id: int) -> bool:
+        """Назначение проекта пользователю"""
+        config = Config()
+        
+        # Проверяем, что проект существует и активен
+        if not await ProjectDB.project_exists(project_name):
+            raise ValueError(f"Проект '{project_name}' не найден или неактивен")
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            try:
+                await db.execute("""
+                    INSERT INTO user_projects (user_id, project_name, assigned_by)
+                    VALUES (?, ?, ?)
+                """, (user_id, project_name, manager_id))
+                
+                await db.commit()
+                logger.info(f"Проект '{project_name}' назначен пользователю {user_id} руководителем {manager_id}")
+                return True
+                
+            except aiosqlite.IntegrityError:
+                logger.warning(f"Проект '{project_name}' уже назначен пользователю {user_id}")
+                return False
+    
+    @staticmethod
+    async def remove_project_from_user(user_id: int, project_name: str) -> bool:
+        """Отзыв проекта у пользователя"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                DELETE FROM user_projects 
+                WHERE user_id = ? AND project_name = ?
+            """, (user_id, project_name))
+            
+            affected_rows = cursor.rowcount
+            await db.commit()
+            
+            if affected_rows > 0:
+                logger.info(f"Проект '{project_name}' отозван у пользователя {user_id}")
+                return True
+            else:
+                logger.warning(f"Проект '{project_name}' не был назначен пользователю {user_id}")
+                return False
+    
+    @staticmethod
+    async def get_user_projects(user_id: int) -> List[str]:
+        """Получение списка проектов, назначенных пользователю"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                SELECT up.project_name 
+                FROM user_projects up
+                JOIN projects p ON up.project_name = p.name
+                WHERE up.user_id = ? AND p.status = 'active'
+                ORDER BY up.assigned_at DESC
+            """, (user_id,))
+            
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+    
+    @staticmethod
+    async def get_project_users(project_name: str) -> List[int]:
+        """Получение списка пользователей, которым назначен проект"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                SELECT user_id FROM user_projects 
+                WHERE project_name = ?
+                ORDER BY assigned_at DESC
+            """, (project_name,))
+            
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
+    
+    @staticmethod
+    async def user_has_access_to_project(user_id: int, project_name: str) -> bool:
+        """Проверка, имеет ли пользователь доступ к проекту"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            cursor = await db.execute("""
+                SELECT COUNT(*) FROM user_projects up
+                JOIN projects p ON up.project_name = p.name
+                WHERE up.user_id = ? AND up.project_name = ? AND p.status = 'active'
+            """, (user_id, project_name))
+            
+            count = await cursor.fetchone()
+            return count[0] > 0
+    
+    @staticmethod
+    async def get_all_user_assignments() -> List[Dict[str, Any]]:
+        """Получение всех назначений проектов"""
+        config = Config()
+        
+        async with aiosqlite.connect(config.DATABASE_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT up.user_id, up.project_name, up.assigned_by, up.assigned_at,
+                       p.status as project_status
+                FROM user_projects up
+                JOIN projects p ON up.project_name = p.name
+                ORDER BY up.assigned_at DESC
+            """)
+            
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows] 

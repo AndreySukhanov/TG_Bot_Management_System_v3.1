@@ -10,7 +10,7 @@ from utils.logger import log_action
 from nlp.parser import PaymentParser
 from nlp.hybrid_parser import HybridPaymentParser
 from handlers.nlp_command_handler import smart_message_router
-from db.database import PaymentDB, BalanceDB, ProjectDB
+from db.database import PaymentDB, BalanceDB, ProjectDB, UserProjectDB
 from utils.file_handler import save_file
 import logging
 import re
@@ -69,19 +69,39 @@ async def payment_request_handler(message: Message):
         # Валидация проекта
         project_exists = await ProjectDB.project_exists(payment_data["project_name"])
         if not project_exists:
-            # Получаем список активных проектов для подсказки
-            active_projects = await ProjectDB.get_project_names()
+            # Получаем список доступных пользователю проектов
+            user_projects = await UserProjectDB.get_user_projects(user_id)
             
-            error_message = f"❌ <b>Проект '{payment_data['project_name']}' не найден или неактивен.</b>\n\n"
+            error_message = f"❌ <b>Проект '{payment_data['project_name']}' не найден или недоступен.</b>\n\n"
             
-            if active_projects:
-                error_message += "📋 <b>Доступные проекты:</b>\n"
-                for project in active_projects:
+            if user_projects:
+                error_message += "📋 <b>Ваши доступные проекты:</b>\n"
+                for project in user_projects:
                     error_message += f"• {project}\n"
                 error_message += "\n💡 Используйте точное название проекта из списка выше."
             else:
-                error_message += "📋 <b>Нет активных проектов.</b>\n\n"
-                error_message += "ℹ️ Обратитесь к руководителю для создания проекта."
+                error_message += "📋 <b>У вас нет доступных проектов.</b>\n\n"
+                error_message += "ℹ️ Обратитесь к руководителю для назначения проектов."
+            
+            await message.answer(error_message, parse_mode="HTML")
+            return
+        
+        # Проверяем, что у пользователя есть доступ к этому проекту
+        has_access = await UserProjectDB.user_has_access_to_project(user_id, payment_data["project_name"])
+        if not has_access:
+            # Получаем список доступных пользователю проектов
+            user_projects = await UserProjectDB.get_user_projects(user_id)
+            
+            error_message = f"❌ <b>У вас нет доступа к проекту '{payment_data['project_name']}'.</b>\n\n"
+            
+            if user_projects:
+                error_message += "📋 <b>Ваши доступные проекты:</b>\n"
+                for project in user_projects:
+                    error_message += f"• {project}\n"
+                error_message += "\n💡 Используйте один из доступных проектов."
+            else:
+                error_message += "📋 <b>У вас нет доступных проектов.</b>\n\n"
+                error_message += "ℹ️ Обратитесь к руководителю для назначения проектов."
             
             await message.answer(error_message, parse_mode="HTML")
             return

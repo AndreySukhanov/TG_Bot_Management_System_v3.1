@@ -11,7 +11,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from utils.config import Config
 from utils.logger import log_action
-from db.database import BalanceDB, PaymentDB, ProjectDB
+from db.database import BalanceDB, PaymentDB, ProjectDB, UserProjectDB
 from nlp.universal_ai_parser import UniversalAIParser
 from nlp.manager_ai_assistant import process_manager_query
 from handlers.nlp_command_handler import smart_message_router
@@ -962,6 +962,221 @@ async def notify_marketer_payment_rejected(bot, marketer_id: int, payment_id: in
         logger.error(f"Не удалось отправить уведомление об отклонении маркетологу {marketer_id}: {e}")
 
 
+async def assign_project_handler(message: Message):
+    """Обработчик команды /assign - назначение проекта пользователю"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Парсим команду: /assign user_id project_name
+    command_parts = message.text.split(maxsplit=2)
+    if len(command_parts) < 3:
+        await message.answer(
+            "❌ Некорректный формат команды.\n\n"
+            "<b>Формат:</b>\n"
+            "<code>/assign USER_ID PROJECT_NAME</code>\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/assign 123456789 Alpha Marketing</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        target_user_id = int(command_parts[1])
+        project_name = command_parts[2]
+    except ValueError:
+        await message.answer("❌ USER_ID должен быть числом.")
+        return
+    
+    try:
+        if await UserProjectDB.assign_project_to_user(target_user_id, project_name, user_id):
+            await message.answer(
+                f"✅ <b>ПРОЕКТ НАЗНАЧЕН</b>\n\n"
+                f"👤 <b>Пользователь:</b> {target_user_id}\n"
+                f"📝 <b>Проект:</b> {project_name}\n"
+                f"📅 <b>Назначен:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                f"🎯 Пользователь теперь может создавать заявки по этому проекту!",
+                parse_mode="HTML"
+            )
+            log_action(user_id, "project_assigned", f"Назначен проект '{project_name}' пользователю {target_user_id}")
+        else:
+            await message.answer(f"❌ Проект '{project_name}' уже назначен этому пользователю.")
+    
+    except ValueError as e:
+        await message.answer(f"❌ {str(e)}")
+    except Exception as e:
+        logger.error(f"Ошибка назначения проекта: {e}")
+        await message.answer("❌ Произошла ошибка при назначении проекта.")
+
+
+async def unassign_project_handler(message: Message):
+    """Обработчик команды /unassign - отзыв проекта у пользователя"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Парсим команду: /unassign user_id project_name
+    command_parts = message.text.split(maxsplit=2)
+    if len(command_parts) < 3:
+        await message.answer(
+            "❌ Некорректный формат команды.\n\n"
+            "<b>Формат:</b>\n"
+            "<code>/unassign USER_ID PROJECT_NAME</code>\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/unassign 123456789 Alpha Marketing</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        target_user_id = int(command_parts[1])
+        project_name = command_parts[2]
+    except ValueError:
+        await message.answer("❌ USER_ID должен быть числом.")
+        return
+    
+    try:
+        if await UserProjectDB.remove_project_from_user(target_user_id, project_name):
+            await message.answer(
+                f"✅ <b>ПРОЕКТ ОТОЗВАН</b>\n\n"
+                f"👤 <b>Пользователь:</b> {target_user_id}\n"
+                f"📝 <b>Проект:</b> {project_name}\n"
+                f"📅 <b>Отозван:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                f"❌ Пользователь больше не может создавать заявки по этому проекту.",
+                parse_mode="HTML"
+            )
+            log_action(user_id, "project_unassigned", f"Отозван проект '{project_name}' у пользователя {target_user_id}")
+        else:
+            await message.answer(f"❌ Проект '{project_name}' не был назначен этому пользователю.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка отзыва проекта: {e}")
+        await message.answer("❌ Произошла ошибка при отзыве проекта.")
+
+
+async def list_assignments_handler(message: Message):
+    """Обработчик команды /assignments - показ всех назначений"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    try:
+        assignments = await UserProjectDB.get_all_user_assignments()
+        
+        if not assignments:
+            await message.answer(
+                "📋 <b>НАЗНАЧЕНИЯ ПРОЕКТОВ</b>\n\n"
+                "📦 Нет назначенных проектов.\n\n"
+                "<b>Команды для назначения:</b>\n"
+                "• <code>/assign USER_ID PROJECT_NAME</code>\n"
+                "• <code>/unassign USER_ID PROJECT_NAME</code>",
+                parse_mode="HTML"
+            )
+            return
+        
+        # Группируем по пользователям
+        user_assignments = {}
+        for assignment in assignments:
+            user_id_key = assignment['user_id']
+            if user_id_key not in user_assignments:
+                user_assignments[user_id_key] = []
+            user_assignments[user_id_key].append(assignment)
+        
+        message_text = "📋 <b>НАЗНАЧЕНИЯ ПРОЕКТОВ</b>\n\n"
+        
+        for user_id_key, user_projects in user_assignments.items():
+            active_projects = [p for p in user_projects if p['project_status'] == 'active']
+            inactive_projects = [p for p in user_projects if p['project_status'] == 'inactive']
+            
+            message_text += f"👤 <b>Пользователь:</b> {user_id_key}\n"
+            
+            if active_projects:
+                message_text += "✅ <b>Активные:</b> "
+                message_text += ", ".join([p['project_name'] for p in active_projects])
+                message_text += "\n"
+            
+            if inactive_projects:
+                message_text += "❌ <b>Неактивные:</b> "
+                message_text += ", ".join([p['project_name'] for p in inactive_projects])
+                message_text += "\n"
+            
+            message_text += "\n"
+        
+        message_text += f"📈 <b>Итого:</b> {len(assignments)} назначений для {len(user_assignments)} пользователей\n\n"
+        message_text += "<b>Команды управления:</b>\n"
+        message_text += "• <code>/assign USER_ID PROJECT</code> - назначить\n"
+        message_text += "• <code>/unassign USER_ID PROJECT</code> - отозвать"
+        
+        await message.answer(message_text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения назначений: {e}")
+        await message.answer("❌ Произошла ошибка при получении списка назначений.")
+
+
+async def user_projects_handler(message: Message):
+    """Обработчик команды /userprojects - показ проектов конкретного пользователя"""
+    user_id = message.from_user.id
+    config = Config()
+    
+    # Проверка роли
+    if config.get_user_role(user_id) != "manager":
+        await message.answer("❌ У вас нет доступа к этой команде.")
+        return
+    
+    # Парсим команду
+    command_parts = message.text.split(maxsplit=1)
+    if len(command_parts) < 2:
+        await message.answer(
+            "❌ Некорректный формат команды.\n\n"
+            "<b>Формат:</b>\n"
+            "<code>/userprojects USER_ID</code>\n\n"
+            "<b>Пример:</b>\n"
+            "<code>/userprojects 123456789</code>",
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        target_user_id = int(command_parts[1])
+    except ValueError:
+        await message.answer("❌ USER_ID должен быть числом.")
+        return
+    
+    try:
+        user_projects = await UserProjectDB.get_user_projects(target_user_id)
+        
+        message_text = f"👤 <b>ПРОЕКТЫ ПОЛЬЗОВАТЕЛЯ {target_user_id}</b>\n\n"
+        
+        if user_projects:
+            message_text += "✅ <b>Доступные проекты:</b>\n"
+            for project in user_projects:
+                message_text += f"• {project}\n"
+            message_text += f"\n📈 <b>Всего:</b> {len(user_projects)} проектов"
+        else:
+            message_text += "📦 <b>Нет назначенных проектов</b>\n\n"
+            message_text += "💡 Чтобы назначить проект:\n"
+            message_text += f"<code>/assign {target_user_id} НазваниеПроекта</code>"
+        
+        await message.answer(message_text, parse_mode="HTML")
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения проектов пользователя: {e}")
+        await message.answer("❌ Произошла ошибка при получении проектов пользователя.")
+
+
 def setup_manager_handlers(dp: Dispatcher):
     """Регистрация обработчиков для руководителей"""
     
@@ -1051,5 +1266,30 @@ def setup_manager_handlers(dp: Dispatcher):
     dp.message.register(
         reject_all_invalid_handler,
         Command("rejectall"),
+        is_manager
+    )
+    
+    # Команды назначения проектов пользователям
+    dp.message.register(
+        assign_project_handler,
+        Command("assign"),
+        is_manager
+    )
+    
+    dp.message.register(
+        unassign_project_handler,
+        Command("unassign"),
+        is_manager
+    )
+    
+    dp.message.register(
+        list_assignments_handler,
+        Command("assignments"),
+        is_manager
+    )
+    
+    dp.message.register(
+        user_projects_handler,
+        Command("userprojects"),
         is_manager
     ) 
